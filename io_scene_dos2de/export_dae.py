@@ -102,7 +102,8 @@ class DaeExporter:
 
     def new_id(self, t):
         self.last_id += 1
-        return "id-{}-{}".format(t, self.last_id)
+        #return "id-{}-{}".format(t, self.last_id)
+        return t
 
     class Vertex:
 
@@ -227,8 +228,9 @@ class DaeExporter:
         if material_id:
             return material_id
 
-        fxid = self.new_id("fx")
-        self.writel(S_FX, 1, "<effect id=\"{}\" name=\"{}-fx\">".format(
+        fxid = self.new_id(material.name)
+        #self.writel(S_FX, 1, "<effect id=\"{}\" name=\"{}-fx\">".format(
+        self.writel(S_FX, 1, "<effect id=\"{}\" name=\"{}\">".format(
             fxid, material.name))
         self.writel(S_FX, 2, "<profile_COMMON>")
 
@@ -673,7 +675,8 @@ class DaeExporter:
             if (len(vi) > 2):  # Only triangles and above
                 indices.append(vi)
 
-        meshid = self.new_id("mesh")
+        #meshid = self.new_id("mesh")
+        meshid = self.new_id(name_to_use)
         self.writel(
             S_GEOM, 1, "<geometry id=\"{}\" name=\"{}\">".format(
                 meshid, name_to_use))
@@ -897,7 +900,8 @@ class DaeExporter:
         # Export armature data (if armature exists)
         if (armature is not None and (
                 skel_source is not None or skeyindex == -1)):
-            contid = self.new_id("controller")
+            #contid = self.new_id("controller")
+            contid = self.new_id(armature.name)
 
             self.writel(S_SKIN, 1, "<controller id=\"{}\">".format(contid))
             if (skel_source is not None):
@@ -1098,7 +1102,8 @@ class DaeExporter:
             is_ctrl_bone = False
 
         if (is_ctrl_bone is False):
-            boneid = self.new_id("bone")
+            #boneid = self.new_id("bone")
+            boneid = self.new_id(bone.name)
             boneidx = si["bone_count"]
             si["bone_count"] += 1
             bonesid = "{}-{}".format(si["id"], boneidx)
@@ -1152,7 +1157,7 @@ class DaeExporter:
         armature = node.data
         self.skeleton_info[node] = {
             "bone_count": 0,
-            "id": self.new_id("skelbones"),
+            "id": self.new_id(node.name),
             "name": node.name,
             "bone_index": {},
             "bone_ids": {},
@@ -1549,7 +1554,8 @@ class DaeExporter:
 
     def export_animation_transform_channel(self, target, keys, matrices=True):
         frame_total = len(keys)
-        anim_id = self.new_id("anim")
+        #anim_id = self.new_id("anim")
+        anim_id = self.new_id(nid)
         self.writel(S_ANIM, 1, "<animation id=\"{}\">".format(anim_id))
         source_frames = ""
         source_transforms = ""
