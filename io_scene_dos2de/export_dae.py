@@ -49,6 +49,8 @@ S_ANIM = 12
 
 CMP_EPSILON = 0.0001
 
+AUTHORING_TOOL_EXPORTER = "Divinity Collada Exporter for Blender"
+AUTHORING_TOOL_AUTHOR = "by LaughingLeader, original script by Juan Linietsky (juan@codenix.com)"
 
 def snap_tup(tup):
     ret = ()
@@ -1538,8 +1540,7 @@ class DaeExporter:
         author = bpy.context.user_preferences.system.author or "Anonymous"
         self.writel(S_ASSET, 2, "<author>{}</author>".format(author))
         self.writel(
-            S_ASSET, 2, "<authoring_tool>Collada Exporter for Blender 2.6+, "
-            "by Juan Linietsky (juan@codenix.com)</authoring_tool>")
+            S_ASSET, 2, "<authoring_tool>{},{}</authoring_tool>".format(AUTHORING_TOOL_EXPORTER, AUTHORING_TOOL_AUTHOR))
         self.writel(S_ASSET, 1, "</contributor>")
         self.writel(S_ASSET, 1, "<created>{}</created>".format(
             time.strftime("%Y-%m-%dT%H:%M:%SZ")))
@@ -1555,7 +1556,7 @@ class DaeExporter:
     def export_animation_transform_channel(self, target, keys, matrices=True):
         frame_total = len(keys)
         #anim_id = self.new_id("anim")
-        anim_id = self.new_id(nid)
+        anim_id = self.new_id(target)
         self.writel(S_ANIM, 1, "<animation id=\"{}\">".format(anim_id))
         source_frames = ""
         source_transforms = ""
