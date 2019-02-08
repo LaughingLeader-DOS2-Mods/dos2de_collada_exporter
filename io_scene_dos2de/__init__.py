@@ -17,6 +17,8 @@
 
 import bpy
 import bmesh
+import os
+
 from bpy.props import StringProperty, BoolProperty, FloatProperty, EnumProperty
 
 from bpy_extras.io_utils import ExportHelper
@@ -43,9 +45,9 @@ if "bpy" in locals():
         imp.reload(export_dae) # noqa
 
 class ExportDAE(bpy.types.Operator, ExportHelper):
-    """Selection to DAE"""
-    bl_idname = "export_dos2scene.dae"
-    bl_label = "Export DAE"
+    """Export to Collada with Divinity-specific options (.dae)"""
+    bl_idname = "export_scene.dos2de_collada"
+    bl_label = "Export Divinity DAE"
     bl_options = {"PRESET", "REGISTER", "UNDO"}
 
     filename_ext = StringProperty(
@@ -64,11 +66,77 @@ class ExportDAE(bpy.types.Operator, ExportHelper):
         name="Directory",
         options={"HIDDEN"}
     )
-    
+
+    def apply_preset(self, context):
+        if self.use_preset == "NONE":
+            return
+        elif self.use_preset == "MODEL":
+            self.object_types = {"ARMATURE", "MESH"}
+            self.yup_enabled = "ROTATE"
+            self.use_tangent_arrays = True
+            self.use_triangles = True
+            self.use_active_layers = True
+            self.auto_name = "LAYER"
+
+            self.xflip_armature = False
+            self.xflip_mesh = False
+            self.use_copy_images = False
+            self.use_exclude_ctrl_bones = False
+            self.use_anim = False
+            self.use_anim_action_all = False
+            self.use_anim_skip_noexp = False
+            self.use_anim_optimize = False
+            self.use_shape_key_export = False
+
+        elif self.use_preset == "ANIMATION":
+            self.object_types = {"ARMATURE"}
+            self.yup_enabled = "ROTATE"
+            self.use_tangent_arrays = False
+            self.use_triangles = False
+            self.use_active_layers = True
+            self.auto_name = "ACTION"
+
+            self.xflip_armature = False
+            self.xflip_mesh = False
+            self.use_copy_images = False
+            self.use_exclude_ctrl_bones = True
+            self.use_anim = True
+            self.use_anim_action_all = False
+            self.use_anim_skip_noexp = True
+            self.use_anim_optimize = False
+            self.use_shape_key_export = False
+
+        elif self.use_preset == "MESHPROXY":
+            self.object_types = {"MESH"}
+            self.yup_enabled = "ROTATE"
+            self.use_tangent_arrays = True
+            self.use_triangles = True
+            self.use_active_layers = True
+            self.auto_name = "LAYER"
+
+            self.xflip_armature = False
+            self.xflip_mesh = False
+            self.use_copy_images = False
+            self.use_exclude_ctrl_bones = False
+            self.use_anim = False
+            self.use_anim_action_all = False
+            self.use_anim_skip_noexp = False
+            self.use_anim_optimize = False
+            self.use_shape_key_export = False
+        
+        self.use_preset = "NONE"
+
     def update_filepath(self, context):
+        if self.directory == "":
+            self.directory = os.path.dirname(bpy.data.filepath)
+
+        if self.filepath == "":
+            #self.filepath = bpy.path.ensure_ext(str.replace(bpy.path.basename(bpy.data.filepath), ".blend", ""), self.filename_ext)
+            self.filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, str.replace(bpy.path.basename(bpy.data.filepath), ".blend", "")), self.filename_ext)
+
         if self.filepath != "" and self.last_filepath == "":
             self.last_filepath = self.filepath
-        
+
         if self.filepath != "":
             if self.auto_name == "LAYER":
                 for i in range(20):
@@ -105,12 +173,22 @@ class ExportDAE(bpy.types.Operator, ExportHelper):
                         self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, anim_name), self.filename_ext)
                         self.update_path = True
             elif self.auto_name == "DISABLED" and self.last_filepath != "":
-                self.auto_filepath = bpy.path.ensure_ext(self.last_filepath, self.filename_ext)
+                self.auto_filepath = self.last_filepath
                 self.update_path = True
             if self.update_path:
                 print("[DOS2DE] Filepath set to " + str(self.auto_filepath))
         return
 
+    use_preset = EnumProperty(
+        name="Preset",
+        description="Use a built-in preset.",
+        items=(("NONE", "None", ""),
+               ("MESHPROXY", "MeshProxy", "Use default meshproxy settings"),
+               ("ANIMATION", "Animation", "Use default animation settings"),
+               ("MODEL", "Model", "Use default model settings")),
+        default=("NONE"),
+        update=apply_preset
+        )
     # List of operator properties, the attributes will be assigned
     # to the class instance from the operator settings before calling
     object_types = EnumProperty(
@@ -270,7 +348,7 @@ class ExportDAE(bpy.types.Operator, ExportHelper):
             self.update_path = False
             if self.filepath != self.auto_filepath:
                 self.filepath = bpy.path.ensure_ext(self.auto_filepath, self.filename_ext)
-                print("[DOS2DE] Filepath is actually: " + self.filepath)
+                #print("[DOS2DE] Filepath is actually: " + self.filepath)
 
         return update
         
@@ -404,18 +482,33 @@ def menu_func(self, context):
     self.layout.operator(ExportDAE.bl_idname,
                          text="DOS2DE Collada (.dae)")
 
+addon_keymaps = []
 
 def register():
     bpy.utils.register_module(__name__)
-
+    #bpy.utils.register_class(ExportDAE)
     bpy.types.INFO_MT_file_export.append(menu_func)
 
+    wm = bpy.context.window_manager
+    km = wm.keyconfigs.addon.keymaps.new('Window', space_type='EMPTY', region_type='WINDOW', modal=False)
+
+    kmi = km.keymap_items.new(ExportDAE.bl_idname, 'E', 'PRESS', ctrl=True, shift=True)
+    #print(__name__)
+    #kmi.properties.name = ExportDAE.bl_idname
+    addon_keymaps.append((km, kmi))
 
 def unregister():
     bpy.utils.unregister_module(__name__)
+    #bpy.utils.unregister_class(ExportDAE)
 
     bpy.types.INFO_MT_file_export.remove(menu_func)
 
+    wm = bpy.context.window_manager
+    kc = wm.keyconfigs.addon
+    if kc:
+        for km, kmi in addon_keymaps:
+            km.keymap_items.remove(kmi)
+    addon_keymaps.clear()
 
 if __name__ == "__main__":
     register()
