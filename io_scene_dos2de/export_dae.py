@@ -873,10 +873,10 @@ class DaeExporter:
                     "source=\"#{}-colors\" offset=\"0\"/>".format(meshid))
             if (has_tangents):
                 self.writel(
-                    S_GEOM, 4, "<input semantic=\"TEXTANGENT\" "
+                    S_GEOM, 4, "<input semantic=\"TANGENT\" "
                     "source=\"#{}-tangents\" offset=\"0\"/>".format(meshid))
                 self.writel(
-                    S_GEOM, 4, "<input semantic=\"TEXBINORMAL\" "
+                    S_GEOM, 4, "<input semantic=\"BINORMAL\" "
                     "source=\"#{}-bitangents\" offset=\"0\"/>".format(meshid))
 
             if (triangulate):
@@ -906,11 +906,11 @@ class DaeExporter:
             # Global
             if self.config["convert_gr2"] == True:
                 extra_settings = self.config["divine_settings"].gr2_settings.extras
-                if extra_settings.rigid == True :
+                if extra_settings == "RIGID":
                     mesh_extra = "rigid"
-                elif extra_settings.cloth == True:
+                elif extra_settings == "CLOTH":
                     mesh_extra = "cloth"
-                elif extra_settings.meshproxy == True:
+                elif extra_settings == "MESHPROXY":
                     mesh_extra = "meshproxy"   
 
             # Custom Property
@@ -932,7 +932,7 @@ class DaeExporter:
 
             self.writel(S_GEOM, 4, "</technique>")
             self.writel(S_GEOM, 3, "</extra>")
-            
+
         self.writel(S_GEOM, 2, "</mesh>")
         self.writel(S_GEOM, 1, "</geometry>")
 

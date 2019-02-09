@@ -21,8 +21,8 @@ import os
 import os.path
 import subprocess
 
-from bpy.types import Operator, AddonPreferences
-from bpy.props import StringProperty, BoolProperty, FloatProperty, EnumProperty
+from bpy.types import Operator, AddonPreferences, PropertyGroup, UIList
+from bpy.props import StringProperty, BoolProperty, FloatProperty, EnumProperty, CollectionProperty, PointerProperty, IntProperty
 
 from bpy_extras.io_utils import ExportHelper
 
@@ -47,36 +47,141 @@ if "bpy" in locals():
     if "export_dae" in locals():
         imp.reload(export_dae) # noqa
 
+class ProjectData(PropertyGroup):
+    project_folder = StringProperty(
+        name="Project Folder",
+        description="The root folder where .blend files are stored"
+    )
+    export_folder = StringProperty(
+        name="Export Folder",
+        description="The root export folder"
+    )
+
+class ProjectEntry(PropertyGroup):
+    project_data = CollectionProperty(type=ProjectData)
+    index = IntProperty()
+
+class AddProjectOperator(Operator):
+    bl_idname = "userpreferences.dos2de_settings_addproject"
+    bl_label = "Add Project"
+    bl_description = "Add an entry to the project list"
+
+    def execute(self, context):
+        user_preferences = context.user_preferences
+        addon_prefs = user_preferences.addons[__name__].preferences
+        project = addon_prefs.projects.project_data.add()
+        return {'FINISHED'}
+
+class RemoveProjectOperator(Operator):
+    bl_idname = "userpreferences.dos2de_settings_removeproject"
+    bl_label = "Remove"
+    bl_description = "Remove Project"
+
+    selected_project = CollectionProperty(type=ProjectData)
+
+    def set_selected(self, item):
+        selected_project = item
+
+    def execute(self, context):
+        user_preferences = context.user_preferences
+        addon_prefs = user_preferences.addons[__name__].preferences
+        project = addon_prefs.projects.project_data.add()
+
+        i = 0
+        for project in addon_prefs.projects.project_data:
+            if (project.project_folder == self.selected_project[0].project_folder
+                and project.export_folder == self.selected_project[0].export_folder):
+                    addon_prefs.projects.project_data.remove(i)
+            i += 1
+
+        self.selected_project.clear()
+
+        return {'FINISHED'}
+
+class DivinityProjectList(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            layout.prop(item, "project_folder", text="Project Folder")
+            layout.prop(item, "export_folder", text="Export Folder")
+            op = layout.operator("userpreferences.dos2de_settings_removeproject", icon="CANCEL", text="", emboss=False)
+            #Is there no better way?
+            project = op.selected_project.add()
+            project.project_folder = item.project_folder
+            project.export_folder = item.export_folder
+
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.label(text="", icon_value=icon)
+
 class ExportColladaAddonPreferences(AddonPreferences):
     bl_idname = __name__
 
     lslib_path = StringProperty(
         name="Divine Path",
-        description="The path to divine.exe, used to convert from dae to gr2.",
+        description="The path to divine.exe, used to convert from dae to gr2",
         subtype='FILE_PATH',
+    )
+    gr2_default_enabled = BoolProperty(
+        name="Convert to GR2 by Default",
+        default=True,
+        description="Models will be converted to gr2 by default if the Divine Path is set"
+    )
+    default_preset = EnumProperty(
+        name="Default Preset",
+        description="The default preset to load when the exporter is opened for the first time",
+        items=(("NONE", "None", ""),
+               ("MESHPROXY", "MeshProxy", "Use default meshproxy settings"),
+               ("ANIMATION", "Animation", "Use default animation settings"),
+               ("MODEL", "Model", "Use default model settings")),
+        default=("NONE")
+    )
+
+    auto_export_subfolder = BoolProperty(
+        name="Use Preset Type for Export Subfolder",
+        description="If enabled, the export subfolder will be determined by the preset type set.\nFor instance, Models go into \Models",
+        default=False
+    )
+
+    #projects = CollectionProperty(
+    #    type=ExportColladaProjectPaths,
+    #    name="Projects",
+    #    description="Project pathways to auto-detect when exporting"
+    #)
+
+    projects = PointerProperty(
+        type=ProjectEntry,
+        name="Projects",
+        description="Project pathways to auto-detect when exporting"
     )
 
     def draw(self, context):
         layout = self.layout
         layout.label(text="Divinity Export Addon Preferences")
         layout.prop(self, "lslib_path")
+        layout.prop(self, "default_preset")
+        layout.prop(self, "auto_export_subfolder")
+        layout.prop(self, "gr2_default_enabled")
 
-class GR2_ExtraProperties(bpy.types.PropertyGroup):
-    """GR2 Extra Properties"""
+        layout.separator()
+        layout.operator("userpreferences.dos2de_settings_addproject")
+        layout.template_list("DivinityProjectList", "", self.projects, "project_data", self.projects, "index")
+
+class GR2_ExtraProperties(PropertyGroup):
+    """GR2 Global Extra Properties"""
     rigid = BoolProperty(
         name="Rigid",
         default=False,
-        description="For meshes lacking an armature modifier. Typically used for weapons."
+        description="For meshes lacking an armature modifier. Typically used for weapons"
     )
     cloth = BoolProperty(
         name="Cloth",
         default=False,
-        description="Meshes with vertex painting will be flagged for cloth physics."
+        description="Meshes with vertex painting will be flagged for cloth physics"
     )
     meshproxy = BoolProperty(
         name="MeshProxy",
         default=False,
-        description="Flags the mesh as a meshproxy, used for displaying overlay effects on a weapon, and AllSpark MeshEmiters."
+        description="Flags the mesh as a meshproxy, used for displaying overlay effects on a weapon, and AllSpark MeshEmiters"
     )
 
     def draw(self, context, obj):
@@ -86,9 +191,16 @@ class GR2_ExtraProperties(bpy.types.PropertyGroup):
 
 class GR2_ExportSettings(bpy.types.PropertyGroup):
     """GR2 Export Options"""
-    extras = bpy.props.PointerProperty(
-        type=GR2_ExtraProperties,
-        name="Extra Properties"
+    extras = EnumProperty(
+        name="Flag",
+        description="Flag every mesh as one of the following",
+        items=(
+                ("DISABLED", "Disabled", ""),
+                ("MESHPROXY", "MeshProxy", "Flags the mesh as a meshproxy, used for displaying overlay effects on a weapon and AllSpark MeshEmiters"),
+                ("CLOTH", "Cloth", "The mesh has vertex painting for use with Divinity's cloth system"),
+                ("RIGID", "Rigid", "For meshes lacking an armature modifier. Typically used for weapons")
+        ),
+        default=("DISABLED")
     )
     yup_conversion = BoolProperty(
         name="Convert to Y-Up",
@@ -114,9 +226,10 @@ class GR2_ExportSettings(bpy.types.PropertyGroup):
         obj.prop(self, "store_indices")
         obj.prop(self, "create_dummyskeleton")
 
-        obj.label("Extra Properties")
-        extrasobj = obj.row(align=False)
-        self.extras.draw(context, extrasobj)
+        obj.label("Extra Properties (Global)")
+        obj.prop(self, "extras")
+        #extrasobj = obj.row(align=False)
+        #self.extras.draw(context, extrasobj)
 
 class Divine_ExportSettings(bpy.types.PropertyGroup):
     """Divine GR2 Conversion Settings"""
@@ -554,7 +667,7 @@ class ExportDAE(Operator, ExportHelper):
     use_metadata = BoolProperty(
         name="Use Metadata",
         default=True,
-        options={"HIDDEN"},
+        options={"HIDDEN"}
         )
 
     update_path = BoolProperty(
@@ -667,10 +780,37 @@ class ExportDAE(Operator, ExportHelper):
         return update
         
     def invoke(self, context, event):
+        user_preferences = context.user_preferences
+        addon_prefs = user_preferences.addons[__name__].preferences
+
+        if addon_prefs.gr2_default_enabled is True:
+            self.convert_gr2 = True
+
+        if addon_prefs.default_preset is not "NONE":
+            self.use_preset = addon_prefs.default_preset
+
         if self.filepath != "" and self.last_filepath == "":
             self.last_filepath = self.filepath
+
+        if addon_prefs.projects:
+            projects = addon_prefs.projects.project_data
+            if projects:
+                for project in projects:
+                    project_folder = project.project_folder
+                    export_folder = project.export_folder
+
+                    print("Checking {} for {}".format(self.filepath, project_folder))
+
+                    if(export_folder != "" and project_folder != "" and 
+                        bpy.path.is_subdir(self.filepath, project_folder)):
+                            self.filepath = export_folder
+                            self.last_filepath = self.filepath
+                            print("Setting start path to export folder {}".format(export_folder))
+                            break
+
         self.update_filepath(context)
         context.window_manager.fileselect_add(self)
+
         return {'RUNNING_MODAL'}
 
     def execute(self, context):
