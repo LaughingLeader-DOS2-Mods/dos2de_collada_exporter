@@ -1001,7 +1001,7 @@ class ExportDAE(Operator, ExportHelper):
 
                     divine_exe = '"{}"'.format(addon_prefs.lslib_path)
 
-                    proccess_args = "{} -g dos2 -s {} -d {} -i dae -o gr2 -a convert-model --gr2-options {}".format(
+                    proccess_args = "{} --loglevel all -g dos2 -s {} -d {} -i dae -o gr2 -a convert-model --gr2-options {}".format(
                         divine_exe, '"{}"'.format(self.filepath), '"{}"'.format(gr2_path), gr2_options_str
                     )
                     
