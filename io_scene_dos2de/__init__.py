@@ -191,15 +191,18 @@ class GR2_ExtraProperties(PropertyGroup):
 
 class GR2_ExportSettings(bpy.types.PropertyGroup):
     """GR2 Export Options"""
+
+    extra_flags = (
+        ("DISABLED", "Disabled", ""),
+        ("MESHPROXY", "MeshProxy", "Flags the mesh as a meshproxy, used for displaying overlay effects on a weapon and AllSpark MeshEmiters"),
+        ("CLOTH", "Cloth", "The mesh has vertex painting for use with Divinity's cloth system"),
+        ("RIGID", "Rigid", "For meshes lacking an armature modifier. Typically used for weapons")
+    )
+
     extras = EnumProperty(
         name="Flag",
         description="Flag every mesh as one of the following",
-        items=(
-                ("DISABLED", "Disabled", ""),
-                ("MESHPROXY", "MeshProxy", "Flags the mesh as a meshproxy, used for displaying overlay effects on a weapon and AllSpark MeshEmiters"),
-                ("CLOTH", "Cloth", "The mesh has vertex painting for use with Divinity's cloth system"),
-                ("RIGID", "Rigid", "For meshes lacking an armature modifier. Typically used for weapons")
-        ),
+        items=extra_flags,
         default=("DISABLED")
     )
     yup_conversion = BoolProperty(
@@ -347,6 +350,38 @@ class ExportDAE(Operator, ExportHelper):
         options={"HIDDEN"}
     )
 
+    export_directory = StringProperty(
+        name="Project Export Directory",
+        default="",
+        options={"HIDDEN"}
+    )
+
+    use_metadata = BoolProperty(
+        name="Use Metadata",
+        default=True,
+        options={"HIDDEN"}
+        )
+
+    update_path = BoolProperty(
+        default=False,
+        options={"HIDDEN"}
+        )
+        
+    auto_filepath = StringProperty(
+        name="Auto Filepath",
+        default="",
+        options={"HIDDEN"}
+        )     
+        
+    last_filepath = StringProperty(
+        name="Last Filepath",
+        default="",
+        options={"HIDDEN"}
+        )
+
+    initialized = BoolProperty(default=False)
+    update_path_next = BoolProperty(default=False)
+
     def build_gr2_options(self):
         export_str = ""
         # Possible args:
@@ -377,76 +412,17 @@ class ExportDAE(Operator, ExportHelper):
 
         for prop,arg in divine_args.items():
             val = getattr(self.divine_settings, prop)
-            if val is True:
+            if val == True:
                 export_str += arg + " "
 
         gr2_settings = self.divine_settings.gr2_settings
 
         for prop,arg in gr2_args.items():
             val = getattr(gr2_settings, prop)
-            if val is True:
+            if val == True:
                 export_str += arg + " "
 
         return export_str;
-
-    def apply_preset(self, context):
-        if self.use_preset == "NONE":
-            return
-        elif self.use_preset == "MODEL":
-            self.object_types = {"ARMATURE", "MESH"}
-            self.yup_enabled = "ROTATE"
-            self.use_tangent_arrays = True
-            self.use_triangles = True
-            self.use_active_layers = True
-            self.auto_name = "LAYER"
-
-            self.xflip_armature = False
-            self.xflip_mesh = False
-            self.use_copy_images = False
-            self.use_exclude_ctrl_bones = False
-            self.use_anim = False
-            self.use_anim_action_all = False
-            self.use_anim_skip_noexp = False
-            self.use_anim_optimize = False
-            self.use_shape_key_export = False
-
-        elif self.use_preset == "ANIMATION":
-            self.object_types = {"ARMATURE"}
-            self.yup_enabled = "ROTATE"
-            self.use_tangent_arrays = False
-            self.use_triangles = False
-            self.use_active_layers = True
-            self.auto_name = "ACTION"
-
-            self.xflip_armature = False
-            self.xflip_mesh = False
-            self.use_copy_images = False
-            self.use_exclude_ctrl_bones = True
-            self.use_anim = True
-            self.use_anim_action_all = False
-            self.use_anim_skip_noexp = True
-            self.use_anim_optimize = False
-            self.use_shape_key_export = False
-
-        elif self.use_preset == "MESHPROXY":
-            self.object_types = {"MESH"}
-            self.yup_enabled = "ROTATE"
-            self.use_tangent_arrays = True
-            self.use_triangles = True
-            self.use_active_layers = True
-            self.auto_name = "LAYER"
-
-            self.xflip_armature = False
-            self.xflip_mesh = False
-            self.use_copy_images = False
-            self.use_exclude_ctrl_bones = False
-            self.use_anim = False
-            self.use_anim_action_all = False
-            self.use_anim_skip_noexp = False
-            self.use_anim_optimize = False
-            self.use_shape_key_export = False
-        
-        self.use_preset = "NONE"
 
     def update_filepath(self, context):
         if self.directory == "":
@@ -458,6 +434,24 @@ class ExportDAE(Operator, ExportHelper):
 
         if self.filepath != "" and self.last_filepath == "":
             self.last_filepath = self.filepath
+
+        user_preferences = context.user_preferences
+        addon_prefs = user_preferences.addons[__name__].preferences
+        
+        if addon_prefs.auto_export_subfolder == True and self.export_directory != "":
+            auto_directory = self.export_directory
+            if self.selected_preset != "NONE":
+                if self.selected_preset == "MODEL":
+                    auto_directory = "{}\\{}".format(self.export_directory, "Models")
+                elif self.selected_preset == "ANIMATION":
+                    auto_directory = "{}\\{}".format(self.export_directory, "Animations")
+                elif self.selected_preset == "MESHPROXY":
+                    auto_directory = "{}\\{}".format(self.export_directory, "Proxy")
+            
+            if not os.path.exists(auto_directory):
+                os.mkdir(auto_directory)
+            self.directory = auto_directory
+            self.update_path = True
 
         if self.filepath != "":
             if self.auto_name == "LAYER":
@@ -494,24 +488,17 @@ class ExportDAE(Operator, ExportHelper):
                     if anim_name != "":
                         self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, anim_name), self.filename_ext)
                         self.update_path = True
+                    else:
+                        #Blend name
+                        self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, str.replace(bpy.path.basename(bpy.data.filepath), ".blend", "")), self.filename_ext)
             elif self.auto_name == "DISABLED" and self.last_filepath != "":
                 self.auto_filepath = self.last_filepath
                 self.update_path = True
             if self.update_path:
-                print("[DOS2DE] Filepath set to " + str(self.auto_filepath))
+                print("")
+                #print("[DOS2DE] Filepath set to " + str(self.auto_filepath))
         return
-
-    use_preset = EnumProperty(
-        name="Preset",
-        description="Use a built-in preset.",
-        items=(("NONE", "None", ""),
-               ("MESHPROXY", "MeshProxy", "Use default meshproxy settings"),
-               ("ANIMATION", "Animation", "Use default animation settings"),
-               ("MODEL", "Model", "Use default model settings")),
-        default=("NONE"),
-        update=apply_preset
-        )
-
+ 
     misc_settings_visible = BoolProperty(
         name="Misc Settings",
         default=False,
@@ -664,29 +651,108 @@ class ExportDAE(Operator, ExportHelper):
         default=6.0,
         )
 
-    use_metadata = BoolProperty(
-        name="Use Metadata",
-        default=True,
-        options={"HIDDEN"}
-        )
+    # Used to reset the global extra flag when a preset is changed
+    preset_applied_extra_flag = BoolProperty(default=False)
+    preset_last_extra_flag = EnumProperty(items=GR2_ExportSettings.extra_flags, default=("DISABLED"))
+       
+    def apply_preset(self, context):
+        if self.selected_preset == "NONE":
+            return
+        elif self.selected_preset == "MODEL":
+            self.object_types = {"ARMATURE", "MESH"}
+            self.yup_enabled = "ROTATE"
+            self.use_tangent_arrays = True
+            self.use_triangles = True
+            self.use_active_layers = True
+            self.auto_name = "LAYER"
 
-    update_path = BoolProperty(
-        default=False,
-        options={"HIDDEN"}
-        )
-        
-    auto_filepath = StringProperty(
-        name="Auto Filepath",
-        default="",
-        options={"HIDDEN"}
-        )     
-        
-    last_filepath = StringProperty(
-        name="Last Filepath",
-        default="",
-        options={"HIDDEN"}
-        )
+            self.xflip_armature = False
+            self.xflip_mesh = False
+            self.use_copy_images = False
+            self.use_exclude_ctrl_bones = False
+            self.use_anim = False
+            self.use_anim_action_all = False
+            self.use_anim_skip_noexp = False
+            self.use_anim_optimize = False
+            self.use_shape_key_export = False
 
+            if self.preset_applied_extra_flag:
+                if self.preset_last_extra_flag != "DISABLED":
+                    self.divine_settings.gr2_settings.extras = self.preset_last_extra_flag
+                    self.preset_last_extra_flag = "DISABLED"
+                    print("Reverted extras flag to {}".format(self.divine_settings.gr2_settings.extras))
+                else:
+                    self.divine_settings.gr2_settings.extras = "DISABLED"
+                self.preset_applied_extra_flag = False
+
+        elif self.selected_preset == "ANIMATION":
+            self.object_types = {"ARMATURE"}
+            self.yup_enabled = "ROTATE"
+            self.use_tangent_arrays = False
+            self.use_triangles = False
+            self.use_active_layers = True
+            self.auto_name = "ACTION"
+
+            self.xflip_armature = False
+            self.xflip_mesh = False
+            self.use_copy_images = False
+            self.use_exclude_ctrl_bones = True
+            self.use_anim = True
+            self.use_anim_action_all = False
+            self.use_anim_skip_noexp = True
+            self.use_anim_optimize = False
+            self.use_shape_key_export = False
+
+            if self.preset_applied_extra_flag:
+                if self.preset_last_extra_flag != "DISABLED":
+                    self.divine_settings.gr2_settings.extras = self.preset_last_extra_flag
+                    self.preset_last_extra_flag = "DISABLED"
+                    print("Reverted extras flag to {}".format(self.divine_settings.gr2_settings.extras))
+                else:
+                    self.divine_settings.gr2_settings.extras = "DISABLED"
+                self.preset_applied_extra_flag = False
+
+        elif self.selected_preset == "MESHPROXY":
+            self.object_types = {"MESH"}
+            self.yup_enabled = "ROTATE"
+            self.use_tangent_arrays = True
+            self.use_triangles = True
+            self.use_active_layers = True
+            self.auto_name = "LAYER"
+
+            self.xflip_armature = False
+            self.xflip_mesh = False
+            self.use_copy_images = False
+            self.use_exclude_ctrl_bones = False
+            self.use_anim = False
+            self.use_anim_action_all = False
+            self.use_anim_skip_noexp = False
+            self.use_anim_optimize = False
+            self.use_shape_key_export = False
+
+            if (self.preset_applied_extra_flag == False):
+                if(self.preset_last_extra_flag == "DISABLED" and self.divine_settings.gr2_settings.extras != "DISABLED"):
+                    self.preset_last_extra_flag = self.divine_settings.gr2_settings.extras
+                self.preset_applied_extra_flag = True
+            
+            self.divine_settings.gr2_settings.extras = "MESHPROXY"
+
+        if self.initialized:
+            self.update_path_next = True
+        
+        return
+        #self.selected_preset = "NONE"
+
+    selected_preset = EnumProperty(
+        name="Preset",
+        description="Use a built-in preset.",
+        items=(("NONE", "None", ""),
+               ("MESHPROXY", "MeshProxy", "Use default meshproxy settings"),
+               ("ANIMATION", "Animation", "Use default animation settings"),
+               ("MODEL", "Model", "Use default model settings")),
+        default=("NONE"),
+        update=apply_preset
+        )
     #def __init__(self):
     #    props = dir(self)
 
@@ -708,7 +774,7 @@ class ExportDAE(Operator, ExportHelper):
         row.prop(self, "object_types")
 
         col = layout.column(align=True)
-        col.prop(self, "use_preset")
+        col.prop(self, "selected_preset")
 
         box = layout.box()
         box.prop(self, "auto_name")
@@ -769,7 +835,13 @@ class ExportDAE(Operator, ExportHelper):
         return True
     
     def check(self, context):
+
         update = False
+
+        if(self.update_path_next):
+            self.update_filepath(context)
+            self.update_path_next = False
+        
         if self.update_path:
             update = True
             self.update_path = False
@@ -783,11 +855,11 @@ class ExportDAE(Operator, ExportHelper):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons[__name__].preferences
 
-        if addon_prefs.gr2_default_enabled is True:
+        if addon_prefs.gr2_default_enabled == True:
             self.convert_gr2 = True
 
-        if addon_prefs.default_preset is not "NONE":
-            self.use_preset = addon_prefs.default_preset
+        if addon_prefs.default_preset != "NONE":
+            self.selected_preset = addon_prefs.default_preset
 
         if self.filepath != "" and self.last_filepath == "":
             self.last_filepath = self.filepath
@@ -803,13 +875,17 @@ class ExportDAE(Operator, ExportHelper):
 
                     if(export_folder != "" and project_folder != "" and 
                         bpy.path.is_subdir(self.filepath, project_folder)):
+                            self.export_directory = export_folder
+                            self.directory = export_folder
                             self.filepath = export_folder
                             self.last_filepath = self.filepath
-                            print("Setting start path to export folder {}".format(export_folder))
+                            print("Setting start path to export folder: \"{}\"".format(export_folder))
                             break
 
         self.update_filepath(context)
         context.window_manager.fileselect_add(self)
+
+        self.initialized = True
 
         return {'RUNNING_MODAL'}
 
@@ -873,7 +949,7 @@ class ExportDAE(Operator, ExportHelper):
                 objFlipped = True
             obj.select = True
 
-        if objRotated is True or objFlipped is True:
+        if objRotated == True or objFlipped == True:
             bpy.ops.object.transform_apply(rotation = objRotated, scale = objFlipped)
 
         keywords = self.as_keywords(ignore=("axis_forward",
@@ -907,7 +983,7 @@ class ExportDAE(Operator, ExportHelper):
                 objFlipped = True
             obj.select = True
 
-        if objRotated is True or objFlipped is True:
+        if objRotated == True or objFlipped == True:
             bpy.ops.object.transform_apply(rotation = objRotated, scale = objFlipped)
         
         for obj in rotatedObjects:
