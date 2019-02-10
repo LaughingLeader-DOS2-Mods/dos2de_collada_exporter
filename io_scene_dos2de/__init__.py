@@ -166,29 +166,6 @@ class ExportColladaAddonPreferences(AddonPreferences):
         layout.operator("userpreferences.dos2de_settings_addproject")
         layout.template_list("DivinityProjectList", "", self.projects, "project_data", self.projects, "index")
 
-class GR2_ExtraProperties(PropertyGroup):
-    """GR2 Global Extra Properties"""
-    rigid = BoolProperty(
-        name="Rigid",
-        default=False,
-        description="For meshes lacking an armature modifier. Typically used for weapons"
-    )
-    cloth = BoolProperty(
-        name="Cloth",
-        default=False,
-        description="Meshes with vertex painting will be flagged for cloth physics"
-    )
-    meshproxy = BoolProperty(
-        name="MeshProxy",
-        default=False,
-        description="Flags the mesh as a meshproxy, used for displaying overlay effects on a weapon, and AllSpark MeshEmiters"
-    )
-
-    def draw(self, context, obj):
-        obj.prop(self, "rigid")
-        obj.prop(self, "cloth")
-        obj.prop(self, "meshproxy")
-
 class GR2_ExportSettings(bpy.types.PropertyGroup):
     """GR2 Export Options"""
 
@@ -657,6 +634,14 @@ class ExportDAE(Operator, ExportHelper):
        
     def apply_preset(self, context):
         if self.selected_preset == "NONE":
+            if self.preset_applied_extra_flag:
+                if self.preset_last_extra_flag != "DISABLED":
+                    self.divine_settings.gr2_settings.extras = self.preset_last_extra_flag
+                    self.preset_last_extra_flag = "DISABLED"
+                    print("Reverted extras flag to {}".format(self.divine_settings.gr2_settings.extras))
+                else:
+                    self.divine_settings.gr2_settings.extras = "DISABLED"
+                self.preset_applied_extra_flag = False
             return
         elif self.selected_preset == "MODEL":
             self.object_types = {"ARMATURE", "MESH"}
@@ -703,14 +688,12 @@ class ExportDAE(Operator, ExportHelper):
             self.use_anim_optimize = False
             self.use_shape_key_export = False
 
-            if self.preset_applied_extra_flag:
-                if self.preset_last_extra_flag != "DISABLED":
-                    self.divine_settings.gr2_settings.extras = self.preset_last_extra_flag
-                    self.preset_last_extra_flag = "DISABLED"
-                    print("Reverted extras flag to {}".format(self.divine_settings.gr2_settings.extras))
-                else:
-                    self.divine_settings.gr2_settings.extras = "DISABLED"
-                self.preset_applied_extra_flag = False
+            if (self.preset_applied_extra_flag == False):
+                if(self.preset_last_extra_flag == "DISABLED" and self.divine_settings.gr2_settings.extras != "DISABLED"):
+                    self.preset_last_extra_flag = self.divine_settings.gr2_settings.extras
+                self.preset_applied_extra_flag = True
+            
+            self.divine_settings.gr2_settings.extras = "DISABLED"
 
         elif self.selected_preset == "MESHPROXY":
             self.object_types = {"MESH"}
