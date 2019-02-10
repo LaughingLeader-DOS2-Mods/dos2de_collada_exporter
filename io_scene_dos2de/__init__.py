@@ -20,6 +20,7 @@ import bmesh
 import os
 import os.path
 import subprocess
+import addon_utils
 
 from bpy.types import Operator, AddonPreferences, PropertyGroup, UIList
 from bpy.props import StringProperty, BoolProperty, FloatProperty, EnumProperty, CollectionProperty, PointerProperty, IntProperty
@@ -374,6 +375,7 @@ class ExportDAE(Operator, ExportHelper):
 
     initialized = BoolProperty(default=False)
     update_path_next = BoolProperty(default=False)
+    log_message = StringProperty(options={"HIDDEN"})
 
     def build_gr2_options(self):
         export_str = ""
@@ -450,12 +452,15 @@ class ExportDAE(Operator, ExportHelper):
 
         if self.filepath != "":
             if self.auto_name == "LAYER":
-                for i in range(20):
-                    if (bpy.data.scenes["Scene"].layers[i]):
-                        self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, 
-                                                bpy.data.scenes["Scene"].namedlayers.layers[i].name), 
-                                            self.filename_ext)
-                        self.update_path = True
+                if hasattr(bpy.data.scenes["Scene"], "namedlayers"):
+                    for i in range(20):
+                        if (bpy.data.scenes["Scene"].layers[i]):
+                            self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, 
+                                                    bpy.data.scenes["Scene"].namedlayers.layers[i].name), 
+                                                self.filename_ext)
+                            self.update_path = True
+                else:
+                    self.log_message = "The 3D Layer Manager addon must be enabled before you can use layer names when exporting."
             elif self.auto_name == "ACTION":
                 armature = None
                 if self.use_active_layers:
@@ -489,8 +494,7 @@ class ExportDAE(Operator, ExportHelper):
             elif self.auto_name == "DISABLED" and self.last_filepath != "":
                 self.auto_filepath = self.last_filepath
                 self.update_path = True
-            if self.update_path:
-                print("")
+            #if self.update_path:
                 #print("[DOS2DE] Filepath set to " + str(self.auto_filepath))
         return
  
@@ -836,6 +840,11 @@ class ExportDAE(Operator, ExportHelper):
         return True
     
     def check(self, context):
+
+        if self.log_message != "":
+            print(self.log_message)
+            self.report({'WARNING'}, "{}".format(self.log_message))
+            self.log_message = ""
 
         update = False
 
