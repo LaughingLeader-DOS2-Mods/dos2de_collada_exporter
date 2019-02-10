@@ -185,7 +185,7 @@ class GR2_ExportSettings(bpy.types.PropertyGroup):
     )
     yup_conversion = BoolProperty(
         name="Convert to Y-Up",
-        default=False
+        default=True
     )
     force_legacy = BoolProperty(
         name="Force Legacy GR2 Version Tag",

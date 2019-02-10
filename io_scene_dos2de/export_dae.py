@@ -1508,14 +1508,18 @@ class DaeExporter:
         prev_node = bpy.context.scene.objects.active
         bpy.context.scene.objects.active = node
 
-        self.writel(
-            S_NODES, il, "<node id=\"{}\" name=\"{}\" type=\"NODE\">".format(
-                self.validate_id(node.name), node.name))
-        il += 1
+        export_armature_enabled = True
 
-        self.writel(
-            S_NODES, il, "<matrix sid=\"transform\">{}</matrix>".format(
-                strmtx(node.matrix_local)))
+        if node.type != "ARMATURE" or export_armature_enabled == True:
+            self.writel(
+                S_NODES, il, "<node id=\"{}\" name=\"{}\" type=\"NODE\">".format(
+                    self.validate_id(node.name), node.name))
+            il += 1
+
+        if node.type != "ARMATURE" or export_armature_enabled == True:
+            self.writel(
+                S_NODES, il, "<matrix sid=\"transform\">{}</matrix>".format(
+                    strmtx(node.matrix_local)))
         if (node.type == "MESH"):
             self.export_mesh_node(node, il)
         elif (node.type == "CURVE"):
@@ -1533,7 +1537,8 @@ class DaeExporter:
             self.export_node(x, il)
 
         il -= 1
-        self.writel(S_NODES, il, "</node>")
+        if node.type != "ARMATURE" or export_armature_enabled == True:
+            self.writel(S_NODES, il, "</node>")
         bpy.context.scene.objects.active = prev_node
 
     def is_node_valid(self, node):
