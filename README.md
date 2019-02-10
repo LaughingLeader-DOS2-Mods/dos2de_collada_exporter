@@ -52,3 +52,5 @@ If checked and a project folder is detected, the current preset will automatical
 
 ## Credits
 This is a heavily modified version of Godot Engine's "Better" Collada Exporter for Blender, located here: [https://github.com/godotengine/collada-exporter](https://github.com/godotengine/collada-exporter)
+
+Special thanks to Norbyte for developing and maintaining [https://github.com/Norbyte/lslib](https://github.com/Norbyte/lslib), which is the sole reason we can even convert models to DOS2's format in the first place. 
