@@ -137,7 +137,7 @@ class ExportColladaAddonPreferences(AddonPreferences):
     )
 
     auto_export_subfolder = BoolProperty(
-        name="Use Preset Type for Export Subfolder",
+        name="Use Preset Type for Project Export Subfolder",
         description="If enabled, the export subfolder will be determined by the preset type set.\nFor instance, Models go into \Models",
         default=False
     )
@@ -158,13 +158,14 @@ class ExportColladaAddonPreferences(AddonPreferences):
         layout = self.layout
         layout.label(text="Divinity Export Addon Preferences")
         layout.prop(self, "lslib_path")
+        layout.prop(self, "gr2_default_enabled")
         layout.prop(self, "default_preset")
         layout.prop(self, "auto_export_subfolder")
-        layout.prop(self, "gr2_default_enabled")
 
         layout.separator()
-        layout.operator("userpreferences.dos2de_settings_addproject")
+        layout.label("Projects")
         layout.template_list("DivinityProjectList", "", self.projects, "project_data", self.projects, "index")
+        layout.operator("userpreferences.dos2de_settings_addproject")
 
 class GR2_ExportSettings(bpy.types.PropertyGroup):
     """GR2 Export Options"""
