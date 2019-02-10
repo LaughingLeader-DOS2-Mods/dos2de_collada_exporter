@@ -185,7 +185,7 @@ class GR2_ExportSettings(bpy.types.PropertyGroup):
     )
     yup_conversion = BoolProperty(
         name="Convert to Y-Up",
-        default=True
+        default=False
     )
     force_legacy = BoolProperty(
         name="Force Legacy GR2 Version Tag",
@@ -916,7 +916,7 @@ class ExportDAE(Operator, ExportHelper):
         for obj in modifyObjects:
             if self.yup_enabled == "ROTATE" and not obj.parent:
                 originalRotations[obj.name] = obj.rotation_euler.copy()
-                print("Saved rotation " + obj.name + " : " + str(originalRotations[obj.name]))
+                print("Saved rotation for " + obj.name + " : " + str(originalRotations[obj.name]))
                 obj.rotation_euler = (obj.rotation_euler.to_matrix() * Matrix.Rotation(radians(-90), 3, 'X')).to_euler()
                 rotatedObjects.append(obj)
                 objRotated = True
@@ -935,6 +935,7 @@ class ExportDAE(Operator, ExportHelper):
 
         if objRotated == True or objFlipped == True:
             bpy.ops.object.transform_apply(rotation = objRotated, scale = objFlipped)
+            print("Applied transformations.")
 
         keywords = self.as_keywords(ignore=("axis_forward",
                                             "axis_up",
