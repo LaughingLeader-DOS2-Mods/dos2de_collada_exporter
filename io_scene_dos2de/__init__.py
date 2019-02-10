@@ -219,6 +219,20 @@ class Divine_ExportSettings(bpy.types.PropertyGroup):
         name="GR2 Export Options"
     )
 
+    game_enums = (
+        ("dos", "DOS", "Divinity: Original Sin"),
+        ("dosee", "DOSEE", "Divinity: Original Sin - Enhanced Edition"),
+        ("dos2", "DOS2", "Divinity: Original Sin 2"),
+        ("dos2de", "DOS2DE", "Divinity: Original Sin 2 - Definitive Edition")
+    )
+
+    game = EnumProperty(
+        name="Game",
+        description="The target game. Currently determines the model format type",
+        items=game_enums,
+        default=("dos2de")
+    )
+
     delete_collada = BoolProperty(
         name="Delete Exported Collada File",
         default=True,
@@ -296,6 +310,7 @@ class Divine_ExportSettings(bpy.types.PropertyGroup):
             ]
 
     def draw(self, context, obj):
+        obj.prop(self, "game")
         obj.label("GR2 Export Settings")
         gr2box = obj.box()
         self.gr2_settings.draw(context, gr2box)
@@ -368,6 +383,8 @@ class ExportDAE(Operator, ExportHelper):
         # force-legacy-version;compact-tris;build-dummy-skeleton;apply-basis-transforms;conform"
 
         divine_args = {
+            "xflip_skeletons"           : "x-flip-skeletons",
+            "xflip_meshes"              : "x-flip-meshes",
             "export_normals"            : "export-normals",
             "export_tangents"           : "export-tangents",
             "export_uvs"                : "export-uvs",
@@ -391,14 +408,14 @@ class ExportDAE(Operator, ExportHelper):
         for prop,arg in divine_args.items():
             val = getattr(self.divine_settings, prop)
             if val == True:
-                export_str += arg + " "
+                export_str += "-e " + arg + " "
 
         gr2_settings = self.divine_settings.gr2_settings
 
         for prop,arg in gr2_args.items():
             val = getattr(gr2_settings, prop)
             if val == True:
-                export_str += arg + " "
+                export_str += "-e " + arg + " "
 
         return export_str;
 
@@ -517,7 +534,7 @@ class ExportDAE(Operator, ExportHelper):
                ("CURVE", "Curve", ""),
                ),
         default={"EMPTY", "CAMERA", "LAMP", "ARMATURE", "MESH", "CURVE"},
-        )
+    )
 
     use_export_selected = BoolProperty(
         name="Selected Only",
@@ -1002,8 +1019,8 @@ class ExportDAE(Operator, ExportHelper):
 
                     divine_exe = '"{}"'.format(addon_prefs.lslib_path)
 
-                    proccess_args = "{} --loglevel all -g dos2de -s {} -d {} -i dae -o gr2 -a convert-model --gr2-options {}".format(
-                        divine_exe, '"{}"'.format(self.filepath), '"{}"'.format(gr2_path), gr2_options_str
+                    proccess_args = "{} --loglevel all -g {} -s {} -d {} -i dae -o gr2 -a convert-model {}".format(
+                        divine_exe, self.divine_settings.game, '"{}"'.format(self.filepath), '"{}"'.format(gr2_path), gr2_options_str
                     )
                     
                     print("Starting GR2 conversion using divine.exe.")
