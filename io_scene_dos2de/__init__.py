@@ -178,7 +178,7 @@ class GR2_ExportSettings(bpy.types.PropertyGroup):
 
     extras = EnumProperty(
         name="Flag",
-        description="Flag every mesh as one of the following",
+        description="Flag every mesh with the selected flag.\nNote: Custom Properties on a mesh will override this",
         items=extra_flags,
         default=("DISABLED")
     )
