@@ -5,7 +5,7 @@ An addon for Blender that allows you to export dae/gr2 files for Divinity: Origi
 ## Features:  
 * Export to dae, or export to gr2 if the path to divine.exe is set.
 * Automatically rotate the object for DOS2's Y-Up world (Blender is Z-Up).
-* Use the layer name or active object name when exporting.
+* Use the layer name, active object name, or action name (animations) when exporting.
 * Use built-in presets for quick exporting.
 * Specify project pathways to skip having to manually navigate to the correct folder when exporting.
 * Specific Custom Properties on meshes are exported (Rigid, Cloth, MeshProxy). You can also globally flag your meshes with one of these flags.
