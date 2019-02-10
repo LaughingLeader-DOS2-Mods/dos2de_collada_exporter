@@ -1,6 +1,6 @@
 # Blender Collada Exporter for Divinity: Original Sin 2 
 
-This is an addon for Blender that allows you to export dae/gr2 files for Divinity: Original Sin 2 - Definitive Edition.
+An addon for Blender that allows you to export dae/gr2 files for Divinity: Original Sin 2 - Definitive Edition.
 
 ## Features:  
 * Export to dae, or export to gr2 if the path to divine.exe is set.
