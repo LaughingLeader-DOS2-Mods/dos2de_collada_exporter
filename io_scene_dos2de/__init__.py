@@ -906,7 +906,10 @@ class ExportDAE(Operator, ExportHelper):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons[__name__].preferences
 
-        current_mode = bpy.context.object.mode
+        if hasattr(bpy.context, "object") and hasattr(bpy.context.object, "mode"):
+            current_mode = bpy.context.object.mode
+        else:
+            current_mode = "OBJECT"
         bpy.ops.object.mode_set(mode="OBJECT")
         
         if self.xflip_mesh:
@@ -944,6 +947,7 @@ class ExportDAE(Operator, ExportHelper):
                 originalRotations[obj.name] = obj.rotation_euler.copy()
                 print("Saved rotation for " + obj.name + " : " + str(originalRotations[obj.name]))
                 obj.rotation_euler = (obj.rotation_euler.to_matrix() * Matrix.Rotation(radians(-90), 3, 'X')).to_euler()
+                print("Rotated " + obj.name + " : " + str(obj.rotation_euler))
                 rotatedObjects.append(obj)
                 objRotated = True
             if self.xflip_armature and obj.type == "ARMATURE":

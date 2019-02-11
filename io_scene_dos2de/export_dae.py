@@ -873,10 +873,10 @@ class DaeExporter:
                     "source=\"#{}-colors\" offset=\"0\"/>".format(meshid))
             if (has_tangents):
                 self.writel(
-                    S_GEOM, 4, "<input semantic=\"TANGENT\" "
+                    S_GEOM, 4, "<input semantic=\"TEXTANGENT\" "
                     "source=\"#{}-tangents\" offset=\"0\"/>".format(meshid))
                 self.writel(
-                    S_GEOM, 4, "<input semantic=\"BINORMAL\" "
+                    S_GEOM, 4, "<input semantic=\"TEXBINORMAL\" "
                     "source=\"#{}-bitangents\" offset=\"0\"/>".format(meshid))
 
             if (triangulate):
