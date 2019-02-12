@@ -104,8 +104,8 @@ class DaeExporter:
 
     def new_id(self, t):
         self.last_id += 1
-        #return "id-{}-{}".format(t, self.last_id)
-        return t
+        return "{}-id-{}".format(t, self.last_id)
+        #return t
 
     class Vertex:
 
@@ -231,8 +231,8 @@ class DaeExporter:
             return material_id
 
         fxid = self.new_id(material.name)
-        #self.writel(S_FX, 1, "<effect id=\"{}\" name=\"{}-fx\">".format(
-        self.writel(S_FX, 1, "<effect id=\"{}\" name=\"{}\">".format(
+        self.writel(S_FX, 1, "<effect id=\"{}\" name=\"{}-fx\">".format(
+        #self.writel(S_FX, 1, "<effect id=\"{}\" name=\"{}\">".format(
             fxid, material.name))
         self.writel(S_FX, 2, "<profile_COMMON>")
 
@@ -376,8 +376,8 @@ class DaeExporter:
         self.writel(S_FX, 1, "</effect>")
 
         # Material (if active)
-        # matid = self.new_id("material")
-        matid = material.name
+        matid = self.new_id(material.name)
+        #matid = material.name
         self.writel(S_MATS, 1, "<material id=\"{}\" name=\"{}\">".format(
             matid, material.name))
         self.writel(S_MATS, 2, "<instance_effect url=\"#{}\"/>".format(fxid))
@@ -903,6 +903,14 @@ class DaeExporter:
             
             mesh_extra = ""
 
+            # Custom Property
+            if self.mesh_has_property(bpy.data.meshes[mesh.name], "rigid"):
+                mesh_extra = "rigid"
+            elif self.mesh_has_property(bpy.data.meshes[mesh.name], "cloth"):
+                mesh_extra = "cloth"
+            elif self.mesh_has_property(bpy.data.meshes[mesh.name], "meshproxy"):
+                mesh_extra = "meshproxy"
+
             # Global
             if self.config["convert_gr2"] == True:
                 extra_settings = self.config["divine_settings"].gr2_settings.extras
@@ -912,14 +920,6 @@ class DaeExporter:
                     mesh_extra = "cloth"
                 elif extra_settings == "MESHPROXY":
                     mesh_extra = "meshproxy"   
-
-            # Custom Property
-            if self.mesh_has_property(bpy.data.meshes[mesh.name], "rigid"):
-                mesh_extra = "rigid"
-            elif self.mesh_has_property(bpy.data.meshes[mesh.name], "cloth"):
-                mesh_extra = "cloth"
-            elif self.mesh_has_property(bpy.data.meshes[mesh.name], "meshproxy"):
-                mesh_extra = "meshproxy"
 
             if mesh_extra == "rigid":
                 self.writel(S_GEOM, 5, "<DivModelType>Rigid</DivModelType>")

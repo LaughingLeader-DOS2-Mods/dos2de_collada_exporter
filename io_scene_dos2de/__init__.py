@@ -86,7 +86,6 @@ class RemoveProjectOperator(Operator):
     def execute(self, context):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons[__name__].preferences
-        project = addon_prefs.projects.project_data.add()
 
         i = 0
         for project in addon_prefs.projects.project_data:
@@ -127,6 +126,7 @@ class ExportColladaAddonPreferences(AddonPreferences):
         default=True,
         description="Models will be converted to gr2 by default if the Divine Path is set"
     )
+
     default_preset = EnumProperty(
         name="Default Preset",
         description="The default preset to load when the exporter is opened for the first time",
@@ -294,6 +294,8 @@ class Divine_ExportSettings(bpy.types.PropertyGroup):
         default=False
     )
 
+    navigate_to_blendfolder = BoolProperty(default=False)
+
     drawable_props = [
             "xflip_skeletons",
             "xflip_meshes",
@@ -309,6 +311,7 @@ class Divine_ExportSettings(bpy.types.PropertyGroup):
             "recalculate_tangents",
             "recalculate_iwt"
             ]
+
 
     def draw(self, context, obj):
         obj.prop(self, "game")
@@ -356,6 +359,12 @@ class ExportDAE(Operator, ExportHelper):
         options={"HIDDEN"}
         )
 
+    auto_determine_path = BoolProperty(
+        default=True,
+        name="Auto-Path",
+        description="Automatically determine the export path"
+        )
+
     update_path = BoolProperty(
         default=False,
         options={"HIDDEN"}
@@ -376,6 +385,8 @@ class ExportDAE(Operator, ExportHelper):
     initialized = BoolProperty(default=False)
     update_path_next = BoolProperty(default=False)
     log_message = StringProperty(options={"HIDDEN"})
+
+    gr2_default_enabled_ignore = BoolProperty(default=False, options={"HIDDEN"})
 
     def build_gr2_options(self):
         export_str = ""
@@ -435,7 +446,7 @@ class ExportDAE(Operator, ExportHelper):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons[__name__].preferences
         
-        if addon_prefs.auto_export_subfolder == True and self.export_directory != "":
+        if self.auto_determine_path == True and addon_prefs.auto_export_subfolder == True and self.export_directory != "":
             auto_directory = self.export_directory
             if self.selected_preset != "NONE":
                 if self.selected_preset == "MODEL":
@@ -773,12 +784,13 @@ class ExportDAE(Operator, ExportHelper):
 
     def draw(self, context):
         layout = self.layout
-
+        
         col = layout.column(align=True)
         row = col.row(align=True)
         row.prop(self, "object_types")
 
         col = layout.column(align=True)
+        col.prop(self, "auto_determine_path")
         col.prop(self, "selected_preset")
 
         box = layout.box()
@@ -846,7 +858,21 @@ class ExportDAE(Operator, ExportHelper):
             self.report({'WARNING'}, "{}".format(self.log_message))
             self.log_message = ""
 
+        user_preferences = context.user_preferences
+        addon_prefs = user_preferences.addons[__name__].preferences
+
+        if self.convert_gr2 == False:
+            self.gr2_default_enabled_ignore = True
+        elif self.gr2_default_enabled_ignore == True:
+            self.gr2_default_enabled_ignore = False
+
         update = False
+
+        if self.divine_settings.navigate_to_blendfolder == True:
+            self.directory = os.path.dirname(bpy.data.filepath)
+            self.filepath = "" #reset
+            self.update_path_next = True
+            self.divine_settings.navigate_to_blendfolder = False
 
         if(self.update_path_next):
             self.update_filepath(context)
@@ -865,7 +891,7 @@ class ExportDAE(Operator, ExportHelper):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons[__name__].preferences
 
-        if addon_prefs.gr2_default_enabled == True:
+        if addon_prefs.gr2_default_enabled == True and self.gr2_default_enabled_ignore == False:
             self.convert_gr2 = True
 
         if addon_prefs.default_preset != "NONE":
@@ -874,7 +900,7 @@ class ExportDAE(Operator, ExportHelper):
         if self.filepath != "" and self.last_filepath == "":
             self.last_filepath = self.filepath
 
-        if addon_prefs.projects:
+        if addon_prefs.projects and self.auto_determine_path == True:
             projects = addon_prefs.projects.project_data
             if projects:
                 for project in projects:
