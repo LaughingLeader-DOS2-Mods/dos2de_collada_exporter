@@ -903,23 +903,25 @@ class DaeExporter:
             
             mesh_extra = ""
 
-            # Custom Property
-            if self.mesh_has_property(bpy.data.meshes[mesh.name], "rigid"):
-                mesh_extra = "rigid"
-            elif self.mesh_has_property(bpy.data.meshes[mesh.name], "cloth"):
-                mesh_extra = "cloth"
-            elif self.mesh_has_property(bpy.data.meshes[mesh.name], "meshproxy"):
-                mesh_extra = "meshproxy"
-
-            # Global
-            if self.config["convert_gr2"] == True:
-                extra_settings = self.config["divine_settings"].gr2_settings.extras
-                if extra_settings == "RIGID":
+            #Animations don't use custom flags
+            if self.config["use_anim"] == False:
+                # Custom Property
+                if self.mesh_has_property(bpy.data.meshes[mesh.name], "rigid"):
                     mesh_extra = "rigid"
-                elif extra_settings == "CLOTH":
+                elif self.mesh_has_property(bpy.data.meshes[mesh.name], "cloth"):
                     mesh_extra = "cloth"
-                elif extra_settings == "MESHPROXY":
-                    mesh_extra = "meshproxy"   
+                elif self.mesh_has_property(bpy.data.meshes[mesh.name], "meshproxy"):
+                    mesh_extra = "meshproxy"
+
+                # Global
+                if self.config["convert_gr2"] == True:
+                    extra_settings = self.config["divine_settings"].gr2_settings.extras
+                    if extra_settings == "RIGID":
+                        mesh_extra = "rigid"
+                    elif extra_settings == "CLOTH":
+                        mesh_extra = "cloth"
+                    elif extra_settings == "MESHPROXY":
+                        mesh_extra = "meshproxy"   
 
             if mesh_extra == "rigid":
                 self.writel(S_GEOM, 5, "<DivModelType>Rigid</DivModelType>")
@@ -929,6 +931,7 @@ class DaeExporter:
                 self.writel(S_GEOM, 5, "<DivModelType>MeshProxy</DivModelType>")
             else:
                 self.writel(S_GEOM, 5, "<DivModelType>Normal</DivModelType>")
+
 
             self.writel(S_GEOM, 4, "</technique>")
             self.writel(S_GEOM, 3, "</extra>")

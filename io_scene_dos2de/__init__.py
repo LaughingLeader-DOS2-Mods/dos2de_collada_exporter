@@ -188,6 +188,10 @@ class GR2_ExportSettings(bpy.types.PropertyGroup):
         name="Convert to Y-Up",
         default=False
     )
+    apply_basis_transforms = BoolProperty(
+        name="Apply Y-Up Transformations",
+        default=False
+    )
     force_legacy = BoolProperty(
         name="Force Legacy GR2 Version Tag",
         default=False
@@ -204,6 +208,7 @@ class GR2_ExportSettings(bpy.types.PropertyGroup):
     def draw(self, context, obj):
         obj.label("GR2 Options")
         obj.prop(self, "yup_conversion")
+        obj.prop(self, "apply_basis_transforms")
         obj.prop(self, "force_legacy")
         obj.prop(self, "store_indices")
         obj.prop(self, "create_dummyskeleton")
@@ -414,7 +419,8 @@ class ExportDAE(Operator, ExportHelper):
             "force_legacy"              : "force-legacy-version",
             "store_indices"             : "compact-tris",
             "create_dummyskeleton"      : "build-dummy-skeleton",
-            "yup_conversion"            : "apply-basis-transforms"
+            "yup_conversion"            : "y-up-skeletons",
+            "apply_basis_transforms"    : "apply-basis-transforms"
             #"conform"					: "conform"
         }
 
@@ -599,12 +605,12 @@ class ExportDAE(Operator, ExportHelper):
         name="Tangent Arrays",
         description="Export Tangent and Binormal arrays "
                     "(for normalmapping).",
-        default=False,
+        default=True,
         )
     use_triangles = BoolProperty(
         name="Triangulate",
         description="Export Triangles instead of Polygons.",
-        default=False,
+        default=True,
         )
 
     use_copy_images = BoolProperty(
@@ -1068,12 +1074,15 @@ class ExportDAE(Operator, ExportHelper):
                     process = subprocess.run(proccess_args, 
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
+                    print(process.stdout)
+                    
                     if process.returncode != 0:
-                        raise Exception("Error converting DAE to GR2: \"{}\"".format(process.stderr))
+                        #raise Exception("Error converting DAE to GR2: \"{}\"{}".format(process.stderr, process.stdout))
+                        error_message = "[DOS2DE-Collada] [ERROR:{}] Error converting DAE to GR2. {}".format(process.returncode, '\n'.join(process.stdout.splitlines()[-1:]))
+                        self.report({"ERROR"}, error_message)
+                        print(error_message)
                     else:
                         #Deleta .dae
-                        print(process.stdout)
-
                         if self.divine_settings.delete_collada:
                             os.remove(self.filepath)
             else:
