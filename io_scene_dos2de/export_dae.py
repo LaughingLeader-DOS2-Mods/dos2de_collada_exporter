@@ -1832,7 +1832,7 @@ class DaeExporter:
         # Export animation XML
         for nid in xform_cache:
             if nid != "Armature":
-                print("nid: " + nid)
+                #print("nid: " + nid)
                 tcn += self.export_animation_transform_channel(
                     nid, xform_cache[nid], True)
         for nid in blend_cache:
