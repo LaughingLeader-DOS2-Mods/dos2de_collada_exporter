@@ -677,6 +677,11 @@ class ExportDAE(Operator, ExportHelper):
     preset_last_extra_flag = EnumProperty(items=GR2_ExportSettings.extra_flags, default=("DISABLED"))
        
     def apply_preset(self, context):
+
+        if self.initialized:
+            #bpy.data.window_managers['dos2de_lastpreset'] = str(self.selected_preset)
+            bpy.context.scene['dos2de_lastpreset'] = self.selected_preset
+
         if self.selected_preset == "NONE":
             if self.preset_applied_extra_flag:
                 if self.preset_last_extra_flag != "DISABLED":
@@ -769,7 +774,7 @@ class ExportDAE(Operator, ExportHelper):
 
         if self.initialized:
             self.update_path_next = True
-        
+
         return
         #self.selected_preset = "NONE"
 
@@ -909,8 +914,13 @@ class ExportDAE(Operator, ExportHelper):
         if addon_prefs.gr2_default_enabled == True and self.gr2_default_enabled_ignore == False:
             self.convert_gr2 = True
 
-        if addon_prefs.default_preset != "NONE":
-            self.selected_preset = addon_prefs.default_preset
+        saved_preset = bpy.context.scene.get('dos2de_lastpreset', None)
+
+        if saved_preset is not None:
+            self.selected_preset = saved_preset
+        else:
+            if addon_prefs.default_preset != "NONE":
+                self.selected_preset = addon_prefs.default_preset
 
         if self.filepath != "" and self.last_filepath == "":
             self.last_filepath = self.filepath
