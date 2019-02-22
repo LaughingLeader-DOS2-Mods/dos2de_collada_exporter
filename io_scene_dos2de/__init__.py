@@ -539,7 +539,7 @@ class ExportDAE(Operator, ExportHelper):
 
     divine_settings = bpy.props.PointerProperty(
         type=Divine_ExportSettings,
-        name="GR2 Settings",
+        name="GR2 Settings"
     )
 
     # List of operator properties, the attributes will be assigned
@@ -554,14 +554,14 @@ class ExportDAE(Operator, ExportHelper):
                ("MESH", "Mesh", ""),
                ("CURVE", "Curve", ""),
                ),
-        default={"EMPTY", "CAMERA", "LAMP", "ARMATURE", "MESH", "CURVE"},
+        default={"EMPTY", "CAMERA", "LAMP", "ARMATURE", "MESH", "CURVE"}
     )
 
     use_export_selected = BoolProperty(
         name="Selected Only",
         description="Export only selected objects (and visible in active "
                     "layers if that applies).",
-        default=False,
+        default=False
         )
     yup_enabled = EnumProperty(
         name="Y-Up",
@@ -574,12 +574,12 @@ class ExportDAE(Operator, ExportHelper):
     xflip_armature = BoolProperty(
         name="X-Flip Armature",
         description="Flips the armature on the x-axis.",
-        default=False,
+        default=False
         )
     xflip_mesh = BoolProperty(
         name="X-Flip Mesh",
         description="Flips the mesh on the x-axis.",
-        default=False,
+        default=False
         )
     auto_name = EnumProperty(
         name="Auto-Name",
@@ -601,61 +601,66 @@ class ExportDAE(Operator, ExportHelper):
                       "(otherwise animation will be applied on top of the last pose)",
         default=True,
         )
+    use_normalize_vert_groups = BoolProperty(
+        name="Normalize Vertex Groups",
+        description="Normalize all vertex groups",
+        default=True
+        )
     use_tangent_arrays = BoolProperty(
         name="Tangent Arrays",
         description="Export Tangent and Binormal arrays "
                     "(for normalmapping).",
-        default=True,
+        default=True
         )
     use_triangles = BoolProperty(
         name="Triangulate",
         description="Export Triangles instead of Polygons.",
-        default=True,
+        default=True
         )
 
     use_copy_images = BoolProperty(
         name="Copy Images",
         description="Copy Images (create images/ subfolder)",
-        default=False,
+        default=False
         )
     use_active_layers = BoolProperty(
         name="Active Layers Only",
         description="Export only objects on the active layers.",
-        default=True,
+        default=True
         )
     use_exclude_ctrl_bones = BoolProperty(
         name="Exclude Control Bones",
         description=("Exclude skeleton bones with names beginning with 'ctrl' "
                      "or bones which are not marked as Deform bones."),
-        default=True,
+        default=True
         )
     use_anim = BoolProperty(
         name="Export Animation",
         description="Export keyframe animation",
-        default=False,
+        default=False
         )
     use_anim_action_all = BoolProperty(
         name="Export All Actions",
         description=("Export all actions for the first armature found "
                      "in separate DAE files"),
-        default=False,
+        default=False
         )
     use_anim_skip_noexp = BoolProperty(
         name="Skip (-noexp) Actions",
         description="Skip exporting of actions whose name end in (-noexp)."
                     " Useful to skip control animations.",
-        default=True,
+        default=True
         )
     use_anim_optimize = BoolProperty(
         name="Optimize Keyframes",
         description="Remove double keyframes",
-        default=True,
+        default=True
         )
 
     use_shape_key_export = BoolProperty(
         name="Export Shape Keys",
         description="Export shape keys for selected objects.",
-        default=False,
+        default=False
         )
         
     anim_optimize_precision = FloatProperty(
@@ -664,7 +669,7 @@ class ExportDAE(Operator, ExportHelper):
                      "(higher for greater accuracy)"),
         min=1, max=16,
         soft_min=1, soft_max=16,
-        default=6.0,
+        default=6.0
         )
 
     # Used to reset the global extra flag when a preset is changed
@@ -685,6 +690,7 @@ class ExportDAE(Operator, ExportHelper):
         elif self.selected_preset == "MODEL":
             self.object_types = {"ARMATURE", "MESH"}
             self.yup_enabled = "ROTATE"
+            self.use_normalize_vert_groups = True
             self.use_tangent_arrays = True
             self.use_triangles = True
             self.use_active_layers = True
@@ -712,6 +718,7 @@ class ExportDAE(Operator, ExportHelper):
         elif self.selected_preset == "ANIMATION":
             self.object_types = {"ARMATURE"}
             self.yup_enabled = "ROTATE"
+            self.use_normalize_vert_groups = False
             self.use_tangent_arrays = False
             self.use_triangles = False
             self.use_active_layers = True
@@ -737,6 +744,7 @@ class ExportDAE(Operator, ExportHelper):
         elif self.selected_preset == "MESHPROXY":
             self.object_types = {"MESH"}
             self.yup_enabled = "ROTATE"
+            self.use_normalize_vert_groups = True
             self.use_tangent_arrays = True
             self.use_triangles = True
             self.use_active_layers = True
@@ -812,6 +820,7 @@ class ExportDAE(Operator, ExportHelper):
         row = col.row(align=True)
         row.prop(self, "use_tangent_arrays")
         row.prop(self, "use_triangles")
+        col.prop(self, "use_normalize_vert_groups")
 
         col = layout.column(align=True)
         row = col.row(align=True)
@@ -942,19 +951,19 @@ class ExportDAE(Operator, ExportHelper):
             current_mode = bpy.context.object.mode
         else:
             current_mode = "OBJECT"
-        bpy.ops.object.mode_set(mode="OBJECT")
-        
+
+        activeObject = None
+        if bpy.context.scene.objects.active:
+            activeObject = bpy.context.scene.objects.active
+
         if self.xflip_mesh:
             bm = bmesh.new()
         
         modifyObjects = []
-        rotatedObjects = []
         selectedObjects = []
         originalRotations = {}
-        activeObject = None
-        
-        if bpy.context.scene.objects.active:
-            activeObject = bpy.context.scene.objects.active
+
+        bpy.ops.object.mode_set(mode="OBJECT")
         
         for obj in context.scene.objects:
             if obj.select:
@@ -970,21 +979,30 @@ class ExportDAE(Operator, ExportHelper):
                             modifyObjects.append(obj)
         elif not self.use_export_selected:
             modifyObjects.extend(context.scene.objects)
-        
-        objFlipped = False
-        objRotated = False
-        
-        for obj in modifyObjects:
-            if self.yup_enabled == "ROTATE" and not obj.parent:
+
+        if self.yup_enabled == "ROTATE":
+            for obj in modifyObjects:
                 originalRotations[obj.name] = obj.rotation_euler.copy()
                 print("Saved rotation for " + obj.name + " : " + str(originalRotations[obj.name]))
-                obj.rotation_euler = (obj.rotation_euler.to_matrix() * Matrix.Rotation(radians(-90), 3, 'X')).to_euler()
-                print("Rotated " + obj.name + " : " + str(obj.rotation_euler))
-                rotatedObjects.append(obj)
-                objRotated = True
+
+        for obj in modifyObjects:
+            obj_rotated = False
+            obj_flipped = False
+
+            if self.yup_enabled == "ROTATE":
+                if not obj.parent:
+                    obj.rotation_euler = (obj.rotation_euler.to_matrix() * Matrix.Rotation(radians(-90), 3, 'X')).to_euler()
+                    print("Rotated " + obj.name + " : " + str(obj.rotation_euler))
+                    obj_rotated = True
+                elif obj.parent.get('dosde_rotated', False) == True:
+                    #Child objects will have a new rotation after their parents have applied
+                    bpy.context.scene.objects.active = obj
+                    bpy.ops.object.transform_apply(rotation = True)
+                    #obj_rotated = True
+
             if self.xflip_armature and obj.type == "ARMATURE":
                 obj.scale = (1.0, -1.0, 1.0)
-                objFlipped = True
+                obj_flipped = True
             if self.xflip_mesh and obj.type == "MESH":
                 obj.scale = (1.0, -1.0, 1.0)
                 bm.from_mesh(obj.data)
@@ -992,12 +1010,23 @@ class ExportDAE(Operator, ExportHelper):
                 bm.to_mesh(obj.data)
                 bm.clear()
                 obj.data.update()
-                objFlipped = True
-            obj.select = True
+                obj_flipped = True
+            
+            #obj.select = True
+            obj['dosde_rotated'] = obj_rotated
+            obj['dosde_flipped'] = obj_flipped
 
-        if objRotated == True or objFlipped == True:
-            bpy.ops.object.transform_apply(rotation = objRotated, scale = objFlipped)
-            print("Applied transformations.")
+            if obj_rotated or obj_flipped:
+                bpy.context.scene.objects.active = obj
+                bpy.ops.object.transform_apply(rotation = obj_rotated, scale = obj_flipped)
+                print("Applied transformations for {}.".format(obj.name))
+
+            if self.use_normalize_vert_groups and obj.type == "MESH":
+                bpy.context.scene.objects.active = obj
+                bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
+                bpy.ops.object.vertex_group_normalize_all()
+                bpy.ops.object.mode_set(mode="OBJECT")
+                print("Normalized vertex groups for {}.".format(obj.name))
 
         keywords = self.as_keywords(ignore=("axis_forward",
                                             "axis_up",
@@ -1010,33 +1039,42 @@ class ExportDAE(Operator, ExportHelper):
         from . import export_dae
         result = export_dae.save(self, context, **keywords)
 
-        objFlipped = False
-        objRotated = False
-        
-        for obj in modifyObjects:
-            if obj in rotatedObjects:
-                obj.rotation_euler = (obj.rotation_euler.to_matrix() * Matrix.Rotation(radians(90), 3, 'X')).to_euler()
-                objRotated = True
-            if self.xflip_armature and obj.type == "ARMATURE":
-                obj.scale = (-1.0, 1.0, 1.0)
-                objFlipped = True
-            if self.xflip_mesh and obj.type == "MESH":
-                obj.scale = (-1.0, 1.0, 1.0)
-                bm.from_mesh(obj.data)
-                bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-                bm.to_mesh(obj.data)
-                bm.clear()
-                obj.data.update()
-                objFlipped = True
-            obj.select = True
 
-        if objRotated == True or objFlipped == True:
-            bpy.ops.object.transform_apply(rotation = objRotated, scale = objFlipped)
-        
-        for obj in rotatedObjects:
-            obj.rotation_euler = originalRotations[obj.name]
-            print("Reverted object rotation for " + obj.name + " : " + str(originalRotations[obj.name]))
-            #rotatedObjects.remove(obj)
+        for obj in modifyObjects:
+            
+            obj_rotated = obj.get("dosde_rotated", False)
+            obj_flipped = obj.get("dos2de_flipped", False)
+
+            print("{} is rotated: {} flipped: {}".format(obj.name, obj_rotated, obj_flipped))
+
+            if obj_rotated:
+                obj.rotation_euler = (obj.rotation_euler.to_matrix() * Matrix.Rotation(radians(90), 3, 'X')).to_euler()
+                #print("Reverted object rotation for {}".format(obj.name))
+
+            if obj_flipped:
+                if obj.type == "ARMATURE":
+                    obj.scale = (-1.0, 1.0, 1.0)
+                    obj["dos2de_flipped"] = False
+                if obj.type == "MESH":
+                    obj.scale = (-1.0, 1.0, 1.0)
+                    bm.from_mesh(obj.data)
+                    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+                    bm.to_mesh(obj.data)
+                    bm.clear()
+                    obj.data.update()
+                
+            if obj_rotated or obj_flipped:
+                bpy.context.scene.objects.active = obj
+                bpy.ops.object.transform_apply(rotation = obj_rotated, scale = obj_flipped)
+
+            if obj.name in originalRotations:
+                obj.rotation_euler = originalRotations[obj.name]
+                print("Reverted object rotation for {} : {}".format(obj.name, originalRotations[obj.name]))
+
+            obj['dosde_rotate'] = False
+            obj['dosde_flippe'] = False
+            
+            obj.select = False
         
         bpy.ops.object.select_all(action='DESELECT')
         

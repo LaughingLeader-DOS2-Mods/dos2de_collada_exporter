@@ -1769,7 +1769,7 @@ class DaeExporter:
                     continue
 
                 if (len(node.constraints) > 0 or
-                        node.animation_data is not None):
+                        node.animation_data is not None and node.type != "ARMATURE"):
                     # If the node has constraints, or animation data, then
                     # export a sampled animation track
                     name = self.validate_id(node.name)
