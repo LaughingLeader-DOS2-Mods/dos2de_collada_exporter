@@ -1007,6 +1007,7 @@ class ExportDAE(Operator, ExportHelper):
                 elif obj.parent.get('dosde_rotated', False) == True:
                     #Child objects will have a new rotation after their parents have applied
                     bpy.context.scene.objects.active = obj
+                    bpy.ops.object.mode_set(mode="OBJECT")
                     bpy.ops.object.transform_apply(rotation = True)
                     #obj_rotated = True
 
@@ -1028,6 +1029,7 @@ class ExportDAE(Operator, ExportHelper):
 
             if obj_rotated or obj_flipped:
                 bpy.context.scene.objects.active = obj
+                bpy.ops.object.mode_set(mode="OBJECT")
                 bpy.ops.object.transform_apply(rotation = obj_rotated, scale = obj_flipped)
                 print("Applied transformations for {}.".format(obj.name))
 
@@ -1075,6 +1077,7 @@ class ExportDAE(Operator, ExportHelper):
                 
             if obj_rotated or obj_flipped:
                 bpy.context.scene.objects.active = obj
+                bpy.ops.object.mode_set(mode="OBJECT")
                 bpy.ops.object.transform_apply(rotation = obj_rotated, scale = obj_flipped)
 
             if obj.name in originalRotations:
