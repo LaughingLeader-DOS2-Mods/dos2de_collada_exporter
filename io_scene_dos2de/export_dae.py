@@ -50,7 +50,7 @@ S_ANIM = 12
 CMP_EPSILON = 0.0001
 
 AUTHORING_TOOL_EXPORTER = "Divinity Collada Exporter for Blender"
-AUTHORING_TOOL_AUTHOR = "by LaughingLeader, original script by Juan Linietsky (juan@codenix.com)"
+AUTHORING_TOOL_AUTHOR = "by Juan Linietsky (juan@codenix.com), modified by LaughingLeader"
 
 def snap_tup(tup):
     ret = ()
@@ -386,10 +386,12 @@ class DaeExporter:
         self.material_cache[material] = matid
         return matid
 
-    def mesh_has_property(self, mesh, property):
-        if property in mesh:
+    def mesh_has_property(self, obj, mesh, property):
+        if obj.get(property, None) is not None or mesh.get(property, None) is not None:
+            print("Mesh has property: {}".format(property))
             return True
-        elif property.capitalize() in mesh:
+        elif obj.get(property.capitalize(), None) is not None or mesh.get(property.capitalize(), None) is not None:
+            print("Mesh has property: {}".format(property))
             return True
 
     def export_mesh(self, node, armature=None, skeyindex=-1, skel_source=None,
@@ -902,15 +904,17 @@ class DaeExporter:
             self.writel(S_GEOM, 4, "<technique profile=\"LSTools\">")
             
             mesh_extra = ""
+            obj_check = bpy.data.objects[node.name]
+            mesh_check = bpy.data.meshes[mesh.name]
 
             #Animations don't use custom flags
             if self.config["use_anim"] == False:
                 # Custom Property
-                if self.mesh_has_property(bpy.data.meshes[mesh.name], "rigid"):
+                if self.mesh_has_property(obj_check, mesh_check, "rigid"):
                     mesh_extra = "rigid"
-                elif self.mesh_has_property(bpy.data.meshes[mesh.name], "cloth"):
+                elif self.mesh_has_property(obj_check, mesh_check, "cloth"):
                     mesh_extra = "cloth"
-                elif self.mesh_has_property(bpy.data.meshes[mesh.name], "meshproxy"):
+                elif self.mesh_has_property(obj_check, mesh_check, "meshproxy"):
                     mesh_extra = "meshproxy"
 
                 # Global
@@ -1558,6 +1562,9 @@ class DaeExporter:
                 return False
 
         if (self.config["use_export_selected"] and not node.select):
+            return False
+
+        if (self.config["use_export_visible"] and node.hide or node.hide_select):
             return False
 
         return True

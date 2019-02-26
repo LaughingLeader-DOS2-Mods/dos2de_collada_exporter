@@ -48,6 +48,13 @@ if "bpy" in locals():
     if "export_dae" in locals():
         imp.reload(export_dae) # noqa
 
+gr2_extra_flags = (
+    ("DISABLED", "Disabled", ""),
+    ("MESHPROXY", "MeshProxy", "Flags the mesh as a meshproxy, used for displaying overlay effects on a weapon and AllSpark MeshEmiters"),
+    ("CLOTH", "Cloth", "The mesh has vertex painting for use with Divinity's cloth system"),
+    ("RIGID", "Rigid", "For meshes lacking an armature modifier. Typically used for weapons")
+)
+
 class ProjectData(PropertyGroup):
     project_folder = StringProperty(
         name="Project Folder",
@@ -171,17 +178,10 @@ class ExportColladaAddonPreferences(AddonPreferences):
 class GR2_ExportSettings(bpy.types.PropertyGroup):
     """GR2 Export Options"""
 
-    extra_flags = (
-        ("DISABLED", "Disabled", ""),
-        ("MESHPROXY", "MeshProxy", "Flags the mesh as a meshproxy, used for displaying overlay effects on a weapon and AllSpark MeshEmiters"),
-        ("CLOTH", "Cloth", "The mesh has vertex painting for use with Divinity's cloth system"),
-        ("RIGID", "Rigid", "For meshes lacking an armature modifier. Typically used for weapons")
-    )
-
     extras = EnumProperty(
         name="Flag",
         description="Flag every mesh with the selected flag.\nNote: Custom Properties on a mesh will override this",
-        items=extra_flags,
+        items=gr2_extra_flags,
         default=("DISABLED")
     )
     yup_conversion = BoolProperty(
@@ -469,7 +469,7 @@ class ExportDAE(Operator, ExportHelper):
 
         if self.filepath != "":
             if self.auto_name == "LAYER":
-                if hasattr(bpy.data.scenes["Scene"], "namedlayers"):
+                if "namedlayers" in bpy.data.scenes["Scene"]:
                     for i in range(20):
                         if (bpy.data.scenes["Scene"].layers[i]):
                             self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, 
@@ -563,14 +563,19 @@ class ExportDAE(Operator, ExportHelper):
                     "layers if that applies).",
         default=False
         )
-    yup_enabled = EnumProperty(
-        name="Y-Up",
-        description="Converts from Z-up to Y-up.",
-        items=(("DISABLED", "Disabled", ""),
-               ("ROTATE", "Rotate", "Rotate the object towards y-up"),
-               ("ACTION", "Flag", "Flag the object as being y-up without rotating it")),
-        default=("DISABLED")
+
+    use_export_visible = BoolProperty(
+        name="Visible Only",
+        description="Export only visible, unhidden, selectable objects",
+        default=True
         )
+
+    yup_rotation_options = (
+        ("DISABLED", "Disabled", ""),
+        ("ROTATE", "Rotate", "Rotate the object towards y-up"),
+        ("ACTION", "Flag", "Flag the object as being y-up without rotating it")
+    )
+
     xflip_armature = BoolProperty(
         name="X-Flip Armature",
         description="Flips the armature on the x-axis.",
@@ -672,15 +677,31 @@ class ExportDAE(Operator, ExportHelper):
         default=6.0
         )
 
+    applying_preset = BoolProperty(default=False)
+    yup_local_override = BoolProperty(default=False)
+
+    def yup_local_override_save(self, context):
+        if self.applying_preset is not True:
+            self.yup_local_override = True
+            bpy.context.scene['dos2de_yup_local_override'] = self.yup_enabled
+
+    yup_enabled = EnumProperty(
+        name="Y-Up",
+        description="Converts from Z-up to Y-up.",
+        items=yup_rotation_options,
+        default=("DISABLED"),
+        update=yup_local_override_save
+        )
+
     # Used to reset the global extra flag when a preset is changed
     preset_applied_extra_flag = BoolProperty(default=False)
-    preset_last_extra_flag = EnumProperty(items=GR2_ExportSettings.extra_flags, default=("DISABLED"))
+    preset_last_extra_flag = EnumProperty(items=gr2_extra_flags, default=("DISABLED"))
        
     def apply_preset(self, context):
-
         if self.initialized:
             #bpy.data.window_managers['dos2de_lastpreset'] = str(self.selected_preset)
             bpy.context.scene['dos2de_lastpreset'] = self.selected_preset
+            self.applying_preset = True
 
         if self.selected_preset == "NONE":
             if self.preset_applied_extra_flag:
@@ -694,7 +715,9 @@ class ExportDAE(Operator, ExportHelper):
             return
         elif self.selected_preset == "MODEL":
             self.object_types = {"ARMATURE", "MESH"}
-            self.yup_enabled = "ROTATE"
+
+            if self.yup_local_override is False:
+                self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = True
             self.use_tangent_arrays = True
             self.use_triangles = True
@@ -722,7 +745,8 @@ class ExportDAE(Operator, ExportHelper):
 
         elif self.selected_preset == "ANIMATION":
             self.object_types = {"ARMATURE"}
-            self.yup_enabled = "ROTATE"
+            if self.yup_local_override is False:
+                self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = False
             self.use_tangent_arrays = False
             self.use_triangles = False
@@ -748,7 +772,8 @@ class ExportDAE(Operator, ExportHelper):
 
         elif self.selected_preset == "MESHPROXY":
             self.object_types = {"MESH"}
-            self.yup_enabled = "ROTATE"
+            if self.yup_local_override is False:
+                self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = True
             self.use_tangent_arrays = True
             self.use_triangles = True
@@ -774,7 +799,6 @@ class ExportDAE(Operator, ExportHelper):
 
         if self.initialized:
             self.update_path_next = True
-
         return
         #self.selected_preset = "NONE"
 
@@ -788,6 +812,7 @@ class ExportDAE(Operator, ExportHelper):
         default=("NONE"),
         update=apply_preset
         )
+        
     #def __init__(self):
     #    props = dir(self)
 
@@ -819,6 +844,7 @@ class ExportDAE(Operator, ExportHelper):
         col = layout.column(align=True)
         row = col.row(align=True)
         row.prop(self, "use_active_layers")
+        row.prop(self, "use_export_visible")
         row.prop(self, "use_export_selected")
 
         col = layout.column(align=True)
@@ -872,6 +898,7 @@ class ExportDAE(Operator, ExportHelper):
         return True
     
     def check(self, context):
+        self.applying_preset = False
 
         if self.log_message != "":
             print(self.log_message)
@@ -922,6 +949,11 @@ class ExportDAE(Operator, ExportHelper):
             if addon_prefs.default_preset != "NONE":
                 self.selected_preset = addon_prefs.default_preset
 
+        yup_local_override = bpy.context.scene.get('dos2de_yup_local_override', None)
+
+        if yup_local_override is not None:
+            self.yup_enabled = yup_local_override
+
         if self.filepath != "" and self.last_filepath == "":
             self.last_filepath = self.filepath
 
@@ -950,6 +982,13 @@ class ExportDAE(Operator, ExportHelper):
 
         return {'RUNNING_MODAL'}
 
+    def can_modify_object(self, obj):
+        if self.use_export_visible and obj.hide or obj.hide_select:
+            return False
+        if self.use_export_selected and obj.select == False:
+            return False
+        return True
+
     def execute(self, context):
         if not self.filepath:
             raise Exception("filepath not set")
@@ -957,7 +996,7 @@ class ExportDAE(Operator, ExportHelper):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons[__name__].preferences
 
-        if hasattr(bpy.context, "object") and hasattr(bpy.context.object, "mode"):
+        if "object" in bpy.context and "mode" in bpy.context.object:
             current_mode = bpy.context.object.mode
         else:
             current_mode = "OBJECT"
@@ -973,19 +1012,20 @@ class ExportDAE(Operator, ExportHelper):
         selectedObjects = []
         originalRotations = {}
 
-        bpy.ops.object.mode_set(mode="OBJECT")
+        if bpy.context.scene.objects.active is not None:
+            bpy.ops.object.mode_set(mode="OBJECT")
         
         for obj in context.scene.objects:
             if obj.select:
                 selectedObjects.append(obj)
-                if self.use_export_selected:
-                    modifyObjects.append(obj)   
+                if self.can_modify_object(obj):
+                    modifyObjects.append(obj)
         
         if self.use_active_layers:
             for i in range(20):
                 if context.scene.layers[i]:
                     for obj in context.scene.objects:
-                        if obj.layers[i]:
+                        if obj.layers[i] and self.can_modify_object(obj):
                             modifyObjects.append(obj)
         elif not self.use_export_selected:
             modifyObjects.extend(context.scene.objects)
@@ -1007,6 +1047,7 @@ class ExportDAE(Operator, ExportHelper):
                 elif obj.parent.get('dosde_rotated', False) == True:
                     #Child objects will have a new rotation after their parents have applied
                     bpy.context.scene.objects.active = obj
+                    obj.select = True
                     bpy.ops.object.mode_set(mode="OBJECT")
                     bpy.ops.object.transform_apply(rotation = True)
                     #obj_rotated = True
@@ -1023,22 +1064,26 @@ class ExportDAE(Operator, ExportHelper):
                 obj.data.update()
                 obj_flipped = True
             
-            #obj.select = True
             obj['dosde_rotated'] = obj_rotated
             obj['dosde_flipped'] = obj_flipped
 
             if obj_rotated or obj_flipped:
                 bpy.context.scene.objects.active = obj
+                obj.select = True
                 bpy.ops.object.mode_set(mode="OBJECT")
                 bpy.ops.object.transform_apply(rotation = obj_rotated, scale = obj_flipped)
-                print("Applied transformations for {}.".format(obj.name))
+                print("Applied transformations for {} | rotation = {} | scale = {}".format(bpy.context.scene.objects.active.name, obj_rotated, obj_flipped))
 
-            if self.use_normalize_vert_groups and obj.type == "MESH":
+            if self.use_normalize_vert_groups and obj.type == "MESH" and obj.vertex_groups:
+                print("Normalizing vertex groups for {}".format(obj.name))
                 bpy.context.scene.objects.active = obj
+                obj.select = True
                 bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
                 bpy.ops.object.vertex_group_normalize_all()
                 bpy.ops.object.mode_set(mode="OBJECT")
                 print("Normalized vertex groups for {}.".format(obj.name))
+            
+            obj.select = False
 
         keywords = self.as_keywords(ignore=("axis_forward",
                                             "axis_up",
@@ -1051,7 +1096,6 @@ class ExportDAE(Operator, ExportHelper):
         from . import export_dae
         result = export_dae.save(self, context, **keywords)
 
-
         for obj in modifyObjects:
             
             obj_rotated = obj.get("dosde_rotated", False)
@@ -1061,7 +1105,6 @@ class ExportDAE(Operator, ExportHelper):
 
             if obj_rotated:
                 obj.rotation_euler = (obj.rotation_euler.to_matrix() * Matrix.Rotation(radians(90), 3, 'X')).to_euler()
-                #print("Reverted object rotation for {}".format(obj.name))
 
             if obj_flipped:
                 if obj.type == "ARMATURE":
@@ -1077,15 +1120,24 @@ class ExportDAE(Operator, ExportHelper):
                 
             if obj_rotated or obj_flipped:
                 bpy.context.scene.objects.active = obj
+                obj.select = True
                 bpy.ops.object.mode_set(mode="OBJECT")
                 bpy.ops.object.transform_apply(rotation = obj_rotated, scale = obj_flipped)
+
+                if obj.children:
+                    for child in obj.children:
+                        child.select = True
+                    bpy.ops.object.transform_apply(rotation = True)
+
+                    for child in obj.children:
+                        child.select = False
 
             if obj.name in originalRotations:
                 obj.rotation_euler = originalRotations[obj.name]
                 print("Reverted object rotation for {} : {}".format(obj.name, originalRotations[obj.name]))
 
-            obj['dosde_rotate'] = False
-            obj['dosde_flippe'] = False
+            del obj['dosde_rotate']
+            del obj['dosde_flipped']
             
             obj.select = False
         
@@ -1141,6 +1193,60 @@ class ExportDAE(Operator, ExportHelper):
            
         return result
 
+class DOS2DEExtraFlagsOperator(Operator):
+    """Set the GR2 Extra Flag for Export"""
+    bl_idname = "export_scene.dos2de_extraflagsop"
+    bl_label = "DOS2DE Extra Flags"
+
+    flag = EnumProperty(
+        name="Flag",
+        description="Set the custom export flag for this mesh.",
+        items=gr2_extra_flags,
+        default=("DISABLED")
+    )
+
+    def execute(self, context):
+        obj = context.object
+        if self.flag == "RIGID":
+            obj["rigid"] = True
+            if "cloth" in obj:
+                del obj["cloth"]
+            if "meshproxy" in obj:
+                del obj["meshproxy"]
+        elif self.flag == "CLOTH":
+            obj["cloth"] = True
+            if "rigid" in obj:
+                del obj["rigid"]
+            if "meshproxy" in obj:
+                del obj["meshproxy"]
+        elif self.flag == "MESHPROXY":
+            obj["meshproxy"] = True
+            if "rigid" in obj:
+                del obj["rigid"]
+            if "cloth" in obj:
+                del obj["cloth"]
+        else:
+            if "rigid" in obj:
+                del obj["rigid"]
+            if "cloth" in obj:
+                del obj["cloth"]
+            if "meshproxy" in obj:
+                del obj["meshproxy"]
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        if "rigid" in context.object:
+            self.flag = "RIGID"
+        elif "cloth" in context.object:
+            self.flag = "CLOTH"
+        if "meshproxy" in context.object:
+            self.flag = "MESHPROXY"
+        
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        self.layout.prop(self, "flag")
 
 def menu_func(self, context):
     self.layout.operator(ExportDAE.bl_idname,
