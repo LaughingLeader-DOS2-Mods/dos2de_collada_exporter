@@ -1103,9 +1103,9 @@ class DaeExporter:
                         for v in d.driver.variables:
                             for t in v.targets:
                                 if (t.id is not None and
-                                        t.id.name in self.scene.objects):
+                                        t.id.name in self.objects):
                                     self.armature_for_morph[
-                                        node] = self.scene.objects[t.id.name]
+                                        node] = self.objects[t.id.name]
 
         meshdata = self.export_mesh(node, armature)
         close_controller = False
@@ -1512,8 +1512,8 @@ class DaeExporter:
         if (node not in self.valid_nodes):
             return
 
-        prev_node = bpy.context.scene.objects.active
-        bpy.context.scene.objects.active = node
+        prev_node = self.active_object
+        self.active_object = node
 
         export_armature_enabled = True
 
@@ -1546,26 +1546,26 @@ class DaeExporter:
         il -= 1
         if node.type != "ARMATURE" or export_armature_enabled == True:
             self.writel(S_NODES, il, "</node>")
-        bpy.context.scene.objects.active = prev_node
+        self.active_object = prev_node
 
     def is_node_valid(self, node):
         if (node.type not in self.config["object_types"]):
             return False
 
-        if (self.config["use_active_layers"]):
-            valid = False
-            for i in range(20):
-                if (node.layers[i] and self.scene.layers[i]):
-                    valid = True
-                    break
-            if (not valid):
-                return False
+        # if (self.config["use_active_layers"]):
+        #     valid = False
+        #     for i in range(20):
+        #         if (node.layers[i] and self.scene.layers[i]):
+        #             valid = True
+        #             break
+        #     if (not valid):
+        #         return False
 
-        if (self.config["use_export_selected"] and not node.select):
-            return False
+        # if (self.config["use_export_selected"] and not node.select):
+        #     return False
 
-        if (self.config["use_export_visible"] and node.hide or node.hide_select):
-            return False
+        # if (self.config["use_export_visible"] and node.hide or node.hide_select):
+        #     return False
 
         return True
 
@@ -1575,7 +1575,7 @@ class DaeExporter:
             S_NODES, 1, "<visual_scene id=\"{}\" name=\"scene\">".format(
                 self.scene_name))
 
-        for obj in self.scene.objects:
+        for obj in self.objects:
             if (obj in self.valid_nodes):
                 continue
             if (self.is_node_valid(obj)):
@@ -1585,7 +1585,7 @@ class DaeExporter:
                         self.valid_nodes.append(n)
                     n = n.parent
 
-        for obj in sorted(self.scene.objects, key=lambda x: x.name):
+        for obj in sorted(self.objects, key=lambda x: x.name):
             if (obj in self.valid_nodes and obj.parent is None):
                 self.export_node(obj, 2)
 
@@ -1742,7 +1742,7 @@ class DaeExporter:
             self.scene.frame_set(t)
             key = t * frame_len - frame_sub
 
-            for node in self.scene.objects:
+            for node in self.objects:
                 if (node not in self.valid_nodes):
                     continue
                 if (allowed is not None and not (node in allowed)):
@@ -2000,15 +2000,17 @@ class DaeExporter:
         f.write(bytes("</COLLADA>\n", "UTF-8"))
         return True
 
-    __slots__ = ("operator", "scene", "last_id", "scene_name", "sections",
+    __slots__ = ("operator", "scene", "objects", "active_object", "last_id", "scene_name", "sections",
                  "path", "mesh_cache", "curve_cache", "material_cache",
                  "image_cache", "skeleton_info", "config", "valid_nodes",
                  "armature_for_morph", "used_bones", "wrongvtx_report",
                  "skeletons", "action_constraints", "temp_meshes")
 
-    def __init__(self, path, kwargs, operator):
+    def __init__(self, path, kwargs, operator, objects):
         self.operator = operator
         self.scene = bpy.context.scene
+        self.objects = objects
+        self.active_object = self.scene.objects.active
         self.last_id = 0
         self.scene_name = self.new_id("scene")
         self.sections = {}
@@ -2035,8 +2037,8 @@ class DaeExporter:
             bpy.data.meshes.remove(mesh)
 
 
-def save(operator, context, filepath="", use_selection=False, **kwargs):
-    with DaeExporter(filepath, kwargs, operator) as exp:
+def save(operator, context, objects, filepath="", **kwargs):
+    with DaeExporter(filepath, kwargs, operator, objects) as exp:
         exp.export()
 
     return {"FINISHED"}

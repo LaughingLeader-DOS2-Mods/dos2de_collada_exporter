@@ -175,7 +175,7 @@ class ExportColladaAddonPreferences(AddonPreferences):
         layout.template_list("DivinityProjectList", "", self.projects, "project_data", self.projects, "index")
         layout.operator("userpreferences.dos2de_settings_addproject")
 
-class GR2_ExportSettings(bpy.types.PropertyGroup):
+class GR2_ExportSettings(PropertyGroup):
     """GR2 Export Options"""
 
     extras = EnumProperty(
@@ -218,7 +218,7 @@ class GR2_ExportSettings(bpy.types.PropertyGroup):
         #extrasobj = obj.row(align=False)
         #self.extras.draw(context, extrasobj)
 
-class Divine_ExportSettings(bpy.types.PropertyGroup):
+class Divine_ExportSettings(PropertyGroup):
     """Divine GR2 Conversion Settings"""
     gr2_settings = bpy.props.PointerProperty(
         type=GR2_ExportSettings,
@@ -996,7 +996,7 @@ class ExportDAE(Operator, ExportHelper):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons[__name__].preferences
 
-        if "object" in bpy.context and "mode" in bpy.context.object:
+        if bpy.context.object is not None and bpy.context.object.mode is not None:
             current_mode = bpy.context.object.mode
         else:
             current_mode = "OBJECT"
@@ -1008,6 +1008,7 @@ class ExportDAE(Operator, ExportHelper):
         if self.xflip_mesh:
             bm = bmesh.new()
         
+        targetObjects = []
         modifyObjects = []
         selectedObjects = []
         originalRotations = {}
@@ -1019,16 +1020,21 @@ class ExportDAE(Operator, ExportHelper):
             if obj.select:
                 selectedObjects.append(obj)
                 if self.can_modify_object(obj):
-                    modifyObjects.append(obj)
+                    targetObjects.append(obj)
         
         if self.use_active_layers:
             for i in range(20):
                 if context.scene.layers[i]:
                     for obj in context.scene.objects:
                         if obj.layers[i] and self.can_modify_object(obj):
-                            modifyObjects.append(obj)
+                            targetObjects.append(obj)
         elif not self.use_export_selected:
-            modifyObjects.extend(context.scene.objects)
+            targetObjects.extend(context.scene.objects)
+
+        for obj in targetObjects:
+            copy = obj.copy()
+            copy.data = obj.data.copy()
+            modifyObjects.append(copy)
 
         if self.yup_enabled == "ROTATE":
             for obj in modifyObjects:
@@ -1038,6 +1044,9 @@ class ExportDAE(Operator, ExportHelper):
         for obj in modifyObjects:
             obj_rotated = False
             obj_flipped = False
+
+            if "llexportprops" in obj:
+                obj.llexportprops.export(context, obj)
 
             if self.yup_enabled == "ROTATE":
                 if not obj.parent:
@@ -1094,7 +1103,7 @@ class ExportDAE(Operator, ExportHelper):
                                             ))
 
         from . import export_dae
-        result = export_dae.save(self, context, **keywords)
+        result = export_dae.save(self, context, modifyObjects, **keywords)
 
         for obj in modifyObjects:
             
@@ -1136,8 +1145,10 @@ class ExportDAE(Operator, ExportHelper):
                 obj.rotation_euler = originalRotations[obj.name]
                 print("Reverted object rotation for {} : {}".format(obj.name, originalRotations[obj.name]))
 
-            del obj['dosde_rotate']
-            del obj['dosde_flipped']
+            if hasattr(obj, "dosde_rotate"):
+                del obj["dosde_rotate"]
+            if hasattr(obj, "dosde_flipped"):
+                del obj["dosde_flipped"]
             
             obj.select = False
         
