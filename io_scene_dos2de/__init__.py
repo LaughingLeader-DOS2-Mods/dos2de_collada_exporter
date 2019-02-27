@@ -990,6 +990,131 @@ class ExportDAE(Operator, ExportHelper):
             return False
         return True
 
+    def merge_armatures(self, context, modifyObjects):
+        if len(context.scene.llexportmerge.armatures) <= 1:
+            print("[DOS2DE-Export] [Warning] Only 1 object to merge. Skipping.")
+            return modifyObjects
+        merge_targets = []
+        for objp in context.scene.llexportmerge.armatures:
+            for obj in modifyObjects:
+                name = obj.llexportprops.original_name
+                if name == objp.name:
+                    merge_targets.append(obj)
+                    break
+                else:
+                    if len(obj.children) > 0:
+                        target_obj = next((child for child in obj.children if child.name == name), None)
+                        if target_obj is not None:
+                            merge_targets.append(target_obj)
+                            break
+
+        count = len(merge_targets)
+        if count > 1:
+            top_object = merge_targets[0]
+            top_object.select = True
+
+            print("[DOS2DE-Export] Selected: {}".format(top_object.name))
+
+            i = 1
+            while i < count:
+                obj = merge_targets[i]
+                obj.select = True
+                if obj in modifyObjects:
+                    modifyObjects.remove(obj)
+                print("[DOS2DE-Export] Selecting {} for merging with object {}".format(obj.name, top_object.name))
+                selected = True
+                i+=1
+
+            bpy.context.scene.objects.active = top_object
+            bpy.ops.object.join()
+
+            print("[DOS2DE-Export] Merged selected objects for {}".format(top_object.name))
+
+            bpy.ops.object.select_all(action='DESELECT')
+            merge_targets.clear()
+            top_object.select = False
+            if top_object not in modifyObjects:
+                modifyObjects.append(top_object)
+        else:
+            print("[DOS2DE-Export] [Error] No objects were selected for merge with {}".format(top_object.name))
+        return modifyObjects
+
+    def merge_meshes(self, context, modifyObjects):
+        if len(context.scene.llexportmerge.meshes) <= 1:
+            print("[DOS2DE-Export] [Warning] Only 1 object to merge. Skipping.")
+            return modifyObjects
+        merge_targets = []
+        for objp in context.scene.llexportmerge.meshes:
+            for obj in modifyObjects:
+                name = obj.llexportprops.original_name
+                if name == objp.name:
+                    merge_targets.append(obj)
+                    break
+                else:
+                    if len(obj.children) > 0:
+                        target_obj = next((child for child in obj.children if child.name == name), None)
+                        if target_obj is not None:
+                            merge_targets.append(target_obj)
+                            break
+
+        count = len(merge_targets)
+        if count > 1:
+            top_object = merge_targets[0]
+            top_object.select = True
+
+            print("[DOS2DE-Export] Selected: {}".format(top_object.name))
+            extra_flag = ""
+
+            if "rigid" in top_object:
+                extra_flag = "rigid"
+            elif "cloth" in top_object:
+                extra_flag = "cloth"
+            elif "meshproxy" in top_object:
+                extra_flag = "meshproxy"
+
+            i = 1
+            while i < count:
+                obj = merge_targets[i]
+                #target_obj = next((x for x in modifyObjects if x.llexportprops.original_name == objname), None)
+                obj.select = True
+                if obj in modifyObjects:
+                    modifyObjects.remove(obj)
+                print("[DOS2DE-Export] Selecting {} for merging with object {}".format(obj.name, top_object.name))
+                selected = True
+
+                if extra_flag == "":
+                    if "rigid" in obj:
+                        extra_flag = "rigid"
+                    elif "cloth" in obj:
+                        extra_flag = "cloth"
+                    elif "meshproxy" in obj:
+                        extra_flag = "meshproxy"
+                i+=1
+
+            bpy.context.scene.objects.active = top_object
+            bpy.ops.object.join()
+
+            if extra_flag != "":
+                if extra_flag == "rigid":
+                    top_object["rigid"] = True
+                elif extra_flag == "cloth":
+                    top_object["cloth"] = True
+                elif extra_flag == "meshproxy":
+                    top_object["meshproxy"] = True
+
+                print("[DOS2DE-Export] Merged selected objects for {}".format(top_object.name))
+            else:
+                print("[DOS2DE-Export] [Error] No objects were selected for merge with {}".format(top_object.name))
+            bpy.ops.object.select_all(action='DESELECT')
+            merge_targets.clear()
+            top_object.select = False
+
+            if top_object not in modifyObjects:
+                modifyObjects.append(top_object)
+        else:
+            print("[DOS2DE-Export] [Error] No objects were selected for merge with {}".format(top_object.name))
+        return modifyObjects
+            
     def execute(self, context):
         if not self.filepath:
             raise Exception("filepath not set")
@@ -1043,7 +1168,16 @@ class ExportDAE(Operator, ExportHelper):
             copies.append(copy)
             print("[DOS2DE-Export] Created a copy of object/data {} ({}/{})".format(obj.name, copy.name, copy.data.name))
 
-        merging_enabled = False
+            # Copy parent/child relations
+            if obj.parent is not None:
+                for copyparent in copies:
+                    if copyparent.llexportprops.original_name == obj.parent.name:
+                        copy.parent = copyparent
+                        if copy not in copyparent.children:
+                            copyparent.children.append(copy)
+                        break
+
+        merging_enabled = hasattr(context.scene, "llexportmerge")
 
         for obj in modifyObjects:
             obj_rotated = False
@@ -1052,9 +1186,6 @@ class ExportDAE(Operator, ExportHelper):
             if hasattr(obj, "llexportprops"):
                 print("Preparing export properties for {}".format(obj.name))
                 obj.llexportprops.prepare(context, obj)
-
-            if hasattr(obj, "llexportmerge"):
-                merging_enabled = True
 
             if self.yup_enabled == "ROTATE":
                 if not obj.parent:
@@ -1101,65 +1232,9 @@ class ExportDAE(Operator, ExportHelper):
 
         # Merging
         if merging_enabled:
-            for obj in modifyObjects:
-                if obj not in modifyObjects:
-                    continue
-
-                name = obj.llexportprops.original_name
-                merge_targets = []
-
-                for otherobj in obj.llexportmerge.objects.data:
-                    if otherobj.selected == True:
-                        merge_targets.append(otherobj.name)
-                
-                if len(merge_targets) > 0:
-                    print("[DOS2DE-Export] Selected: {}".format(obj.type))
-
-                    extra_flag = ""
-
-                    if "rigid" in obj:
-                        extra_flag = "rigid"
-                    elif "cloth" in obj:
-                        extra_flag = "cloth"
-                    elif "meshproxy" in obj:
-                        extra_flag = "meshproxy"
-
-                    selected = False
-                    for objname in merge_targets:
-                        target_obj = next((x for x in modifyObjects if x.llexportprops.original_name == objname), None)
-                        if target_obj is not None:
-                            target_obj.select = True
-                            modifyObjects.remove(target_obj)
-                            print("[DOS2DE-Export] Selecting {} for merging with object {}".format(target_obj.name, obj.name))
-                            selected = True
-
-                            if extra_flag == "":
-                                if "rigid" in target_obj:
-                                    extra_flag = "rigid"
-                                elif "cloth" in target_obj:
-                                    extra_flag = "cloth"
-                                elif "meshproxy" in target_obj:
-                                    extra_flag = "meshproxy"
-                
-                    if selected:
-                        bpy.context.scene.objects.active = obj
-                        obj.select = True
-                        bpy.ops.object.join()
-
-                        if extra_flag != "":
-                            if extra_flag == "rigid":
-                                obj["rigid"] = True
-                            elif extra_flag == "cloth":
-                                obj["cloth"] = True
-                            elif extra_flag == "meshproxy":
-                                obj["meshproxy"] = True
-
-                        print("[DOS2DE-Export] Merged selected objects for {}".format(obj.name))
-                    else:
-                        print("[DOS2DE-Export] [Error] No objects were selected for merge with {}".format(obj.name))
-                    bpy.ops.object.select_all(action='DESELECT')
-                    merge_targets.clear()
-                    obj.select = False
+            print("Merging meshes.")
+            modifyObjects = self.merge_armatures(context, modifyObjects)
+            modifyObjects = self.merge_meshes(context, modifyObjects)
 
         keywords = self.as_keywords(ignore=("axis_forward",
                                             "axis_up",
@@ -1168,6 +1243,9 @@ class ExportDAE(Operator, ExportHelper):
                                             "filter_glob",
                                             "xna_validate",
                                             ))
+
+        for obj in modifyObjects:
+            print("Exporting {}".format(obj.name))
 
         from . import export_dae
         result = export_dae.save(self, context, modifyObjects, **keywords)
@@ -1184,6 +1262,10 @@ class ExportDAE(Operator, ExportHelper):
         for block in bpy.data.meshes:
             if block.users == 0:
                 bpy.data.meshes.remove(block)
+
+        for block in bpy.data.armatures:
+            if block.users == 0:
+                bpy.data.armatures.remove(block)
 
         for block in bpy.data.materials:
             if block.users == 0:
