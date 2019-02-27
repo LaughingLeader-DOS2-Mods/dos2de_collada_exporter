@@ -27,7 +27,7 @@ from bpy.props import StringProperty, BoolProperty, FloatProperty, EnumProperty,
 
 from bpy_extras.io_utils import ExportHelper
 
-from math import radians
+from math import radians, degrees
 from mathutils import Euler, Matrix
 
 bl_info = {
@@ -1036,7 +1036,7 @@ class ExportDAE(Operator, ExportHelper):
             if top_object not in modifyObjects:
                 modifyObjects.append(top_object)
         else:
-            print("[DOS2DE-Export] [Error] No objects were selected for merge with {}".format(top_object.name))
+            print("[DOS2DE-Export] [Error] No objects were selected for merge with {}")
         return modifyObjects
 
     def merge_meshes(self, context, modifyObjects):
@@ -1114,7 +1114,17 @@ class ExportDAE(Operator, ExportHelper):
         else:
             print("[DOS2DE-Export] [Error] No objects were selected for merge with {}".format(top_object.name))
         return modifyObjects
-            
+    
+    def transform_apply(self, context, obj, location=False, rotation=False, scale=False):
+        last_active = getattr(bpy.context.scene.objects, "active", None)
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.context.scene.objects.active = obj
+        obj.select = True
+        bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.transform_apply(location=location, rotation=rotation, scale=scale)
+        obj.select = False
+        bpy.context.scene.objects.active = last_active
+
     def execute(self, context):
         if not self.filepath:
             raise Exception("filepath not set")
@@ -1173,36 +1183,58 @@ class ExportDAE(Operator, ExportHelper):
                 for copyparent in copies:
                     if copyparent.llexportprops.original_name == obj.parent.name:
                         copy.parent = copyparent
+                        print("  [DOS2DE-Export] Set parent for {} to {}".format(copy.name, copyparent.name))
+
+                        if copy.parent.type == "ARMATURE":
+                            armature_modifiers = (mod for mod in copy.modifiers if mod.type == "ARMATURE" and mod.object.name == obj.parent.name)
+                            for mod in armature_modifiers:
+                                mod.object = copyparent
+                                print("   [DOS2DE-Export] Updated armature modifier to point to the copied armature {} for child {}".format(copyparent.name, copy.name))
+
                         if copy not in copyparent.children:
                             copyparent.children.append(copy)
+                            print("    [DOS2DE-Export] Added {} to parent {} children list".format(copy.name, copyparent.name))
                         break
 
         merging_enabled = hasattr(context.scene, "llexportmerge")
 
         for obj in modifyObjects:
-            obj_rotated = False
-            obj_flipped = False
-
             if hasattr(obj, "llexportprops"):
-                print("Preparing export properties for {}".format(obj.name))
-                obj.llexportprops.prepare(context, obj)
+                if not obj.parent:
+                    print("Preparing export properties for {}".format(obj.name))
+                    obj.llexportprops.prepare(context, obj)
+                    for childobj in obj.children:
+                        print("  Preparing export properties for child {}".format(childobj.name))
+                        childobj.llexportprops.prepare(context, childobj)
 
             if self.yup_enabled == "ROTATE":
-                if not obj.parent:
-                    obj.rotation_euler = (obj.rotation_euler.to_matrix() * Matrix.Rotation(radians(-90), 3, 'X')).to_euler()
-                    print("Rotated " + obj.name + " : " + str(obj.rotation_euler))
-                    obj_rotated = True
-                elif obj.parent.get('dosde_rotated', False) == True:
-                    #Child objects will have a new rotation after their parents have applied
-                    bpy.context.scene.objects.active = obj
-                    obj.select = True
-                    bpy.ops.object.mode_set(mode="OBJECT")
-                    bpy.ops.object.transform_apply(rotation = True)
-                    #obj_rotated = True
+                    if not obj.parent:
+                        print("  Rotating {} to y-up. | (x={}, y={}, z={})".format(obj.name, degrees(obj.rotation_euler[0]),
+                                    degrees(childobj.rotation_euler[1]), degrees(obj.rotation_euler[2]))
+                                )
+                        obj.rotation_euler = (obj.rotation_euler.to_matrix() * Matrix.Rotation(radians(-90), 3, 'X')).to_euler()
+                        print("  Rotated {} to y-up. | (x={}, y={}, z={}) Applying rotation.".format(obj.name, degrees(obj.rotation_euler[0]),
+                                    degrees(childobj.rotation_euler[1]), degrees(obj.rotation_euler[2]))
+                                )
+                        self.transform_apply(context, obj, rotation=True)
+
+                        for childobj in obj.children:
+                            # print("  Applying rotation transform to child {} | (x={}, y={}, z={})".format(childobj.name, degrees(childobj.rotation_euler[0]),
+                            #         degrees(childobj.rotation_euler[1]), degrees(childobj.rotation_euler[2]))
+                            #     )
+                            self.transform_apply(context, childobj, rotation=True)
+                            # print("  Rotation: (x={}, y={}, z={})".format(degrees(childobj.rotation_euler[0]),
+                            #         degrees(childobj.rotation_euler[1]), degrees(childobj.rotation_euler[2]))
+                            #     )
+                            childobj.rotation_euler = (childobj.rotation_euler.to_matrix() * Matrix.Rotation(radians(-90), 3, 'X')).to_euler()
+                            print("  Rotated child {} to y-up. {} Applying rotation.".format(childobj.name, str(childobj.rotation_euler)))
+                            self.transform_apply(context, childobj, rotation=True)
 
             if self.xflip_armature and obj.type == "ARMATURE":
                 obj.scale = (1.0, -1.0, 1.0)
-                obj_flipped = True
+                self.transform_apply(context, obj, scale=True)
+                print("Flipped and applied scale transformation for {} ".format(obj.name))
+
             if self.xflip_mesh and obj.type == "MESH":
                 obj.scale = (1.0, -1.0, 1.0)
                 bm.from_mesh(obj.data)
@@ -1210,31 +1242,25 @@ class ExportDAE(Operator, ExportHelper):
                 bm.to_mesh(obj.data)
                 bm.clear()
                 obj.data.update()
-                obj_flipped = True
-
-            if obj_rotated or obj_flipped:
-                bpy.context.scene.objects.active = obj
-                obj.select = True
-                bpy.ops.object.mode_set(mode="OBJECT")
-                bpy.ops.object.transform_apply(rotation = obj_rotated, scale = obj_flipped)
-                print("Applied transformations for {} | rotation = {} | scale = {}".format(bpy.context.scene.objects.active.name, obj_rotated, obj_flipped))
+                self.transform_apply(context, obj, scale=True)
+                print("Flipped and applied scale transformation for {} ".format(obj.name))
 
             if self.use_normalize_vert_groups and obj.type == "MESH" and obj.vertex_groups:
-                print("Normalizing vertex groups for {}".format(obj.name))
                 bpy.context.scene.objects.active = obj
                 obj.select = True
                 bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
                 bpy.ops.object.vertex_group_normalize_all()
                 bpy.ops.object.mode_set(mode="OBJECT")
                 print("Normalized vertex groups for {}.".format(obj.name))
-            
-            obj.select = False
+                obj.select = False
 
         # Merging
         if merging_enabled:
             print("Merging meshes.")
-            modifyObjects = self.merge_armatures(context, modifyObjects)
-            modifyObjects = self.merge_meshes(context, modifyObjects)
+            if len(context.scene.llexportmerge.armatures) > 0:
+                modifyObjects = self.merge_armatures(context, modifyObjects)
+            if len(context.scene.llexportmerge.meshes) > 0:
+                modifyObjects = self.merge_meshes(context, modifyObjects)
 
         keywords = self.as_keywords(ignore=("axis_forward",
                                             "axis_up",
@@ -1246,6 +1272,7 @@ class ExportDAE(Operator, ExportHelper):
 
         for obj in modifyObjects:
             print("Exporting {}".format(obj.name))
+            print("  Rotation {}".format(str(obj.rotation_euler)))
 
         from . import export_dae
         result = export_dae.save(self, context, modifyObjects, **keywords)
