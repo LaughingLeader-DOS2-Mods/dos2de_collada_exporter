@@ -1125,6 +1125,27 @@ class ExportDAE(Operator, ExportHelper):
         obj.select = False
         bpy.context.scene.objects.active = last_active
 
+    def copy_obj(self, context, obj, parent=None):
+        copy = obj.copy()
+        copy.data = obj.data.copy()
+        context.scene.objects.link(copy)
+        
+        if hasattr(obj, "llexportprops"):
+            copy.llexportprops.original_name = obj.name
+
+        print("[DOS2DE-Export] Created a copy of object/data {} ({}/{})".format(obj.name, copy.name, copy.data.name))
+
+        if parent is not None:
+            copy.parent = parent
+            copy.matrix_parent_inverse = obj.matrix_parent_inverse.copy()
+            if parent.type == "ARMATURE":
+                armature_modifiers = (mod for mod in copy.modifiers if mod.type == "ARMATURE" and mod.object.name == obj.parent.name)
+                for mod in armature_modifiers:
+                    mod.object = parent
+                    print("   [DOS2DE-Export] Updated armature modifier to point to the copied armature {} for child {}".format(parent.name, copy.name))
+
+        return copy
+
     def execute(self, context):
         if not self.filepath:
             raise Exception("filepath not set")
@@ -1169,32 +1190,15 @@ class ExportDAE(Operator, ExportHelper):
             targetObjects.extend(context.scene.objects)
 
         for obj in targetObjects:
-            copy = obj.copy()
-            copy.data = obj.data.copy()
-            modifyObjects.append(copy)
-            context.scene.objects.link(copy)
-            if hasattr(obj, "llexportprops"):
-                copy.llexportprops.original_name = obj.name
-            copies.append(copy)
-            print("[DOS2DE-Export] Created a copy of object/data {} ({}/{})".format(obj.name, copy.name, copy.data.name))
+            if not obj.parent:
+                copy = self.copy_obj(context, obj)
+                modifyObjects.append(copy)
+                copies.append(copy)
 
-            # Copy parent/child relations
-            if obj.parent is not None:
-                for copyparent in copies:
-                    if copyparent.llexportprops.original_name == obj.parent.name:
-                        copy.parent = copyparent
-                        print("  [DOS2DE-Export] Set parent for {} to {}".format(copy.name, copyparent.name))
-
-                        if copy.parent.type == "ARMATURE":
-                            armature_modifiers = (mod for mod in copy.modifiers if mod.type == "ARMATURE" and mod.object.name == obj.parent.name)
-                            for mod in armature_modifiers:
-                                mod.object = copyparent
-                                print("   [DOS2DE-Export] Updated armature modifier to point to the copied armature {} for child {}".format(copyparent.name, copy.name))
-
-                        if copy not in copyparent.children:
-                            copyparent.children.append(copy)
-                            print("    [DOS2DE-Export] Added {} to parent {} children list".format(copy.name, copyparent.name))
-                        break
+                for childobj in obj.children:
+                    childcopy = self.copy_obj(context, childobj, copy)
+                    modifyObjects.append(childcopy)
+                    copies.append(childcopy)
 
         merging_enabled = hasattr(context.scene, "llexportmerge")
 
@@ -1213,22 +1217,32 @@ class ExportDAE(Operator, ExportHelper):
                                     degrees(childobj.rotation_euler[1]), degrees(obj.rotation_euler[2]))
                                 )
                         obj.rotation_euler = (obj.rotation_euler.to_matrix() * Matrix.Rotation(radians(-90), 3, 'X')).to_euler()
-                        print("  Rotated {} to y-up. | (x={}, y={}, z={}) Applying rotation.".format(obj.name, degrees(obj.rotation_euler[0]),
+                        print("  Rotated {} to y-up. | (x={}, y={}, z={})".format(obj.name, degrees(obj.rotation_euler[0]),
                                     degrees(childobj.rotation_euler[1]), degrees(obj.rotation_euler[2]))
                                 )
+
                         self.transform_apply(context, obj, rotation=True)
 
                         for childobj in obj.children:
-                            # print("  Applying rotation transform to child {} | (x={}, y={}, z={})".format(childobj.name, degrees(childobj.rotation_euler[0]),
-                            #         degrees(childobj.rotation_euler[1]), degrees(childobj.rotation_euler[2]))
-                            #     )
-                            self.transform_apply(context, childobj, rotation=True)
-                            # print("  Rotation: (x={}, y={}, z={})".format(degrees(childobj.rotation_euler[0]),
-                            #         degrees(childobj.rotation_euler[1]), degrees(childobj.rotation_euler[2]))
-                            #     )
-                            childobj.rotation_euler = (childobj.rotation_euler.to_matrix() * Matrix.Rotation(radians(-90), 3, 'X')).to_euler()
-                            print("  Rotated child {} to y-up. {} Applying rotation.".format(childobj.name, str(childobj.rotation_euler)))
-                            self.transform_apply(context, childobj, rotation=True)
+                            childobj.select = True
+                            # rot_x = degrees(childobj.rotation_euler[0])
+                            # if rot_x != 0:
+                            #     parent_yup_applied = round(rot_x) == -90
+                            #     print("  Applying rotation transform to child {} | (x={})".format(childobj.name, rot_x))
+                            #     self.transform_apply(context, childobj, rotation=True)
+
+                            #     if parent_yup_applied == False:
+                            #         print("    Rotating child to y-up: (x={}, y={}, z={})".format(degrees(childobj.rotation_euler[0]),
+                            #                 degrees(childobj.rotation_euler[1]), degrees(childobj.rotation_euler[2]))
+                            #             )
+                            #         childobj.rotation_euler = (childobj.rotation_euler.to_matrix() * Matrix.Rotation(radians(-90), 3, 'X')).to_euler()
+                            #         print("      Rotated child {} to y-up. (x={})".format(childobj.name, degrees(childobj.rotation_euler[0])))
+                            #         self.transform_apply(context, childobj, rotation=True)
+
+                        bpy.context.scene.objects.active = obj
+                        obj.select = True
+                        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+                        bpy.ops.object.select_all(action='DESELECT')
 
             if self.xflip_armature and obj.type == "ARMATURE":
                 obj.scale = (1.0, -1.0, 1.0)
@@ -1285,7 +1299,7 @@ class ExportDAE(Operator, ExportHelper):
 
         bpy.ops.object.delete(use_global=True)
 
-        # Cleanup
+        #Cleanup
         for block in bpy.data.meshes:
             if block.users == 0:
                 bpy.data.meshes.remove(block)
