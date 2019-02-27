@@ -547,14 +547,14 @@ class ExportDAE(Operator, ExportHelper):
     object_types = EnumProperty(
         name="Object Types",
         options={"ENUM_FLAG"},
-        items=(("EMPTY", "Empty", ""),
-               ("CAMERA", "Camera", ""),
-               ("LAMP", "Lamp", ""),
+        items=(
                ("ARMATURE", "Armature", ""),
                ("MESH", "Mesh", ""),
+               ("MATERIAL", "Material", "Export the material for each mesh"),
                ("CURVE", "Curve", ""),
-               ),
-        default={"EMPTY", "CAMERA", "LAMP", "ARMATURE", "MESH", "CURVE"}
+               ("EMPTY", "Empty", ""),
+        ),
+        default={"ARMATURE", "MESH", "MATERIAL", "EMPTY", "MESH", "CURVE"}
     )
 
     use_export_selected = BoolProperty(
@@ -714,6 +714,7 @@ class ExportDAE(Operator, ExportHelper):
                 self.preset_applied_extra_flag = False
             return
         elif self.selected_preset == "MODEL":
+            #self.object_types = {"ARMATURE", "MESH", "MATERIAL"}
             self.object_types = {"ARMATURE", "MESH"}
 
             if self.yup_local_override is False:
@@ -1011,16 +1012,15 @@ class ExportDAE(Operator, ExportHelper):
         targetObjects = []
         modifyObjects = []
         selectedObjects = []
-        originalRotations = {}
+        copies = []
 
-        if bpy.context.scene.objects.active is not None:
+        if activeObject is not None:
             bpy.ops.object.mode_set(mode="OBJECT")
         
         for obj in context.scene.objects:
             if obj.select:
                 selectedObjects.append(obj)
-                if self.can_modify_object(obj):
-                    targetObjects.append(obj)
+                obj.select = False
         
         if self.use_active_layers:
             for i in range(20):
@@ -1028,25 +1028,33 @@ class ExportDAE(Operator, ExportHelper):
                     for obj in context.scene.objects:
                         if obj.layers[i] and self.can_modify_object(obj):
                             targetObjects.append(obj)
-        elif not self.use_export_selected:
+        elif self.use_export_selected:
+            targetObjects.extend(selectedObjects)
+        else:
             targetObjects.extend(context.scene.objects)
 
         for obj in targetObjects:
             copy = obj.copy()
             copy.data = obj.data.copy()
             modifyObjects.append(copy)
+            context.scene.objects.link(copy)
+            if hasattr(obj, "llexportprops"):
+                copy.llexportprops.original_name = obj.name
+            copies.append(copy)
+            print("[DOS2DE-Export] Created a copy of object/data {} ({}/{})".format(obj.name, copy.name, copy.data.name))
 
-        if self.yup_enabled == "ROTATE":
-            for obj in modifyObjects:
-                originalRotations[obj.name] = obj.rotation_euler.copy()
-                print("Saved rotation for " + obj.name + " : " + str(originalRotations[obj.name]))
+        merging_enabled = False
 
         for obj in modifyObjects:
             obj_rotated = False
             obj_flipped = False
 
-            if "llexportprops" in obj:
-                obj.llexportprops.export(context, obj)
+            if hasattr(obj, "llexportprops"):
+                print("Preparing export properties for {}".format(obj.name))
+                obj.llexportprops.prepare(context, obj)
+
+            if hasattr(obj, "llexportmerge"):
+                merging_enabled = True
 
             if self.yup_enabled == "ROTATE":
                 if not obj.parent:
@@ -1072,9 +1080,6 @@ class ExportDAE(Operator, ExportHelper):
                 bm.clear()
                 obj.data.update()
                 obj_flipped = True
-            
-            obj['dosde_rotated'] = obj_rotated
-            obj['dosde_flipped'] = obj_flipped
 
             if obj_rotated or obj_flipped:
                 bpy.context.scene.objects.active = obj
@@ -1094,6 +1099,68 @@ class ExportDAE(Operator, ExportHelper):
             
             obj.select = False
 
+        # Merging
+        if merging_enabled:
+            for obj in modifyObjects:
+                if obj not in modifyObjects:
+                    continue
+
+                name = obj.llexportprops.original_name
+                merge_targets = []
+
+                for otherobj in obj.llexportmerge.objects.data:
+                    if otherobj.selected == True:
+                        merge_targets.append(otherobj.name)
+                
+                if len(merge_targets) > 0:
+                    print("[DOS2DE-Export] Selected: {}".format(obj.type))
+
+                    extra_flag = ""
+
+                    if "rigid" in obj:
+                        extra_flag = "rigid"
+                    elif "cloth" in obj:
+                        extra_flag = "cloth"
+                    elif "meshproxy" in obj:
+                        extra_flag = "meshproxy"
+
+                    selected = False
+                    for objname in merge_targets:
+                        target_obj = next((x for x in modifyObjects if x.llexportprops.original_name == objname), None)
+                        if target_obj is not None:
+                            target_obj.select = True
+                            modifyObjects.remove(target_obj)
+                            print("[DOS2DE-Export] Selecting {} for merging with object {}".format(target_obj.name, obj.name))
+                            selected = True
+
+                            if extra_flag == "":
+                                if "rigid" in target_obj:
+                                    extra_flag = "rigid"
+                                elif "cloth" in target_obj:
+                                    extra_flag = "cloth"
+                                elif "meshproxy" in target_obj:
+                                    extra_flag = "meshproxy"
+                
+                    if selected:
+                        bpy.context.scene.objects.active = obj
+                        obj.select = True
+                        bpy.ops.object.join()
+
+                        if extra_flag != "":
+                            if extra_flag == "rigid":
+                                obj["rigid"] = True
+                            elif extra_flag == "cloth":
+                                obj["cloth"] = True
+                            elif extra_flag == "meshproxy":
+                                obj["meshproxy"] = True
+
+                        print("[DOS2DE-Export] Merged selected objects for {}".format(obj.name))
+                    else:
+                        print("[DOS2DE-Export] [Error] No objects were selected for merge with {}".format(obj.name))
+                    bpy.ops.object.select_all(action='DESELECT')
+                    merge_targets.clear()
+                    obj.select = False
+
         keywords = self.as_keywords(ignore=("axis_forward",
                                             "axis_up",
                                             "global_scale",
@@ -1105,53 +1172,31 @@ class ExportDAE(Operator, ExportHelper):
         from . import export_dae
         result = export_dae.save(self, context, modifyObjects, **keywords)
 
-        for obj in modifyObjects:
-            
-            obj_rotated = obj.get("dosde_rotated", False)
-            obj_flipped = obj.get("dos2de_flipped", False)
+        bpy.ops.object.select_all(action='DESELECT')
 
-            print("{} is rotated: {} flipped: {}".format(obj.name, obj_rotated, obj_flipped))
-
-            if obj_rotated:
-                obj.rotation_euler = (obj.rotation_euler.to_matrix() * Matrix.Rotation(radians(90), 3, 'X')).to_euler()
-
-            if obj_flipped:
-                if obj.type == "ARMATURE":
-                    obj.scale = (-1.0, 1.0, 1.0)
-                    obj["dos2de_flipped"] = False
-                if obj.type == "MESH":
-                    obj.scale = (-1.0, 1.0, 1.0)
-                    bm.from_mesh(obj.data)
-                    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-                    bm.to_mesh(obj.data)
-                    bm.clear()
-                    obj.data.update()
-                
-            if obj_rotated or obj_flipped:
-                bpy.context.scene.objects.active = obj
+        for obj in copies:
+            if obj is not None:
                 obj.select = True
-                bpy.ops.object.mode_set(mode="OBJECT")
-                bpy.ops.object.transform_apply(rotation = obj_rotated, scale = obj_flipped)
 
-                if obj.children:
-                    for child in obj.children:
-                        child.select = True
-                    bpy.ops.object.transform_apply(rotation = True)
+        bpy.ops.object.delete(use_global=True)
 
-                    for child in obj.children:
-                        child.select = False
+        # Cleanup
+        for block in bpy.data.meshes:
+            if block.users == 0:
+                bpy.data.meshes.remove(block)
 
-            if obj.name in originalRotations:
-                obj.rotation_euler = originalRotations[obj.name]
-                print("Reverted object rotation for {} : {}".format(obj.name, originalRotations[obj.name]))
+        for block in bpy.data.materials:
+            if block.users == 0:
+                bpy.data.materials.remove(block)
 
-            if hasattr(obj, "dosde_rotate"):
-                del obj["dosde_rotate"]
-            if hasattr(obj, "dosde_flipped"):
-                del obj["dosde_flipped"]
-            
-            obj.select = False
-        
+        for block in bpy.data.textures:
+            if block.users == 0:
+                bpy.data.textures.remove(block)
+
+        for block in bpy.data.images:
+            if block.users == 0:
+                bpy.data.images.remove(block)
+
         bpy.ops.object.select_all(action='DESELECT')
         
         for obj in selectedObjects:
@@ -1165,9 +1210,7 @@ class ExportDAE(Operator, ExportHelper):
             if activeObject.type != "ARMATURE" and current_mode == "POSE":
                 bpy.ops.object.mode_set(mode="OBJECT")
             else:
-                bpy.ops.object.mode_set ( mode = current_mode )
-        else:
-            bpy.ops.object.mode_set(mode="OBJECT")
+                bpy.ops.object.mode_set (mode=current_mode )
 
         if self.convert_gr2:
             if (addon_prefs.lslib_path is not None and addon_prefs.lslib_path != "" 

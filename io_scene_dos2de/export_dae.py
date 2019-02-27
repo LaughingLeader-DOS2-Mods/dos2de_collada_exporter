@@ -102,9 +102,9 @@ class DaeExporter:
             return "z{}".format(d)
         return d
 
-    def new_id(self, t):
+    def new_id(self, t, extra=""):
         self.last_id += 1
-        return "{}-id-{}".format(t, self.last_id)
+        return "{}{}-id-{}".format(t, extra, self.last_id)
         #return t
 
     class Vertex:
@@ -167,225 +167,6 @@ class DaeExporter:
                 sections[k] = v
         self.sections = sections
 
-    def export_image(self, image):
-        img_id = self.image_cache.get(image)
-        if img_id:
-            return img_id
-
-        imgpath = image.filepath
-        if imgpath.startswith("//"):
-            imgpath = bpy.path.abspath(imgpath)
-
-        if (self.config["use_copy_images"]):
-            basedir = os.path.join(os.path.dirname(self.path), "images")
-            if (not os.path.isdir(basedir)):
-                os.makedirs(basedir)
-
-            if os.path.isfile(imgpath):
-                dstfile = os.path.join(basedir, os.path.basename(imgpath))
-
-                if not os.path.isfile(dstfile):
-                    shutil.copy(imgpath, dstfile)
-                imgpath = os.path.join("images", os.path.basename(imgpath))
-            else:
-                img_tmp_path = image.filepath
-                if img_tmp_path.lower().endswith(
-                    tuple(bpy.path.extensions_image)):
-                    image.filepath = os.path.join(
-                        basedir, os.path.basename(img_tmp_path))
-                else:
-                    image.filepath = os.path.join(
-                        basedir, "{}.png".format(image.name))
-
-                dstfile = os.path.join(
-                    basedir, os.path.basename(image.filepath))
-
-                if not os.path.isfile(dstfile):
-                    image.save()
-                imgpath = os.path.join(
-                    "images", os.path.basename(image.filepath))
-                image.filepath = img_tmp_path
-
-        else:
-            try:
-                imgpath = os.path.relpath(
-                    imgpath, os.path.dirname(self.path)).replace("\\", "/")
-            except:
-                # TODO: Review, not sure why it fails
-                pass
-
-        imgid = self.new_id("image")
-
-        print("FOR: {}".format(imgpath))
-
-        self.writel(S_IMGS, 1, "<image id=\"{}\" name=\"{}\">".format(
-            imgid, image.name))
-        self.writel(S_IMGS, 2, "<init_from>{}</init_from>".format(imgpath))
-        self.writel(S_IMGS, 1, "</image>")
-        self.image_cache[image] = imgid
-        return imgid
-
-    def export_material(self, material, double_sided_hint=True):
-        material_id = self.material_cache.get(material)
-        if material_id:
-            return material_id
-
-        fxid = self.new_id(material.name)
-        self.writel(S_FX, 1, "<effect id=\"{}\" name=\"{}-fx\">".format(
-        #self.writel(S_FX, 1, "<effect id=\"{}\" name=\"{}\">".format(
-            fxid, material.name))
-        self.writel(S_FX, 2, "<profile_COMMON>")
-
-        # Find and fetch the textures and create sources
-        sampler_table = {}
-        diffuse_tex = None
-        specular_tex = None
-        emission_tex = None
-        normal_tex = None
-        for i in range(len(material.texture_slots)):
-            ts = material.texture_slots[i]
-            if not ts:
-                continue
-            if not ts.use:
-                continue
-            if not ts.texture:
-                continue
-            if ts.texture.type != "IMAGE":
-                continue
-
-            if ts.texture.image is None:
-                continue
-
-            # Image
-            imgid = self.export_image(ts.texture.image)
-
-            # Surface
-            surface_sid = self.new_id("fx_surf")
-            self.writel(S_FX, 3, "<newparam sid=\"{}\">".format(surface_sid))
-            self.writel(S_FX, 4, "<surface type=\"2D\">")
-            self.writel(S_FX, 5, "<init_from>{}</init_from>".format(imgid))
-            self.writel(S_FX, 5, "<format>A8R8G8B8</format>")
-            self.writel(S_FX, 4, "</surface>")
-            self.writel(S_FX, 3, "</newparam>")
-
-            # Sampler
-            sampler_sid = self.new_id("fx_sampler")
-            self.writel(S_FX, 3, "<newparam sid=\"{}\">".format(sampler_sid))
-            self.writel(S_FX, 4, "<sampler2D>")
-            self.writel(S_FX, 5, "<source>{}</source>".format(surface_sid))
-            self.writel(S_FX, 4, "</sampler2D>")
-            self.writel(S_FX, 3, "</newparam>")
-            sampler_table[i] = sampler_sid
-
-            if ts.use_map_color_diffuse and diffuse_tex is None:
-                diffuse_tex = sampler_sid
-            if ts.use_map_color_spec and specular_tex is None:
-                specular_tex = sampler_sid
-            if ts.use_map_emit and emission_tex is None:
-                emission_tex = sampler_sid
-            if ts.use_map_normal and normal_tex is None:
-                normal_tex = sampler_sid
-
-        self.writel(S_FX, 3, "<technique sid=\"common\">")
-        shtype = "blinn"
-        self.writel(S_FX, 4, "<{}>".format(shtype))
-
-        self.writel(S_FX, 5, "<emission>")
-        if emission_tex is not None:
-            self.writel(
-                S_FX, 6, "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>"
-                .format(emission_tex))
-        else:
-            # TODO: More accurate coloring, if possible
-            self.writel(S_FX, 6, "<color>{}</color>".format(
-                numarr_alpha(material.diffuse_color, material.emit)))
-        self.writel(S_FX, 5, "</emission>")
-
-        self.writel(S_FX, 5, "<ambient>")
-        self.writel(S_FX, 6, "<color>{}</color>".format(
-            numarr_alpha(self.scene.world.ambient_color, material.ambient)))
-        self.writel(S_FX, 5, "</ambient>")
-
-        self.writel(S_FX, 5, "<diffuse>")
-        if diffuse_tex is not None:
-            self.writel(
-                S_FX, 6, "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>"
-                .format(diffuse_tex))
-        else:
-            self.writel(S_FX, 6, "<color>{}</color>".format(numarr_alpha(
-                material.diffuse_color, material.diffuse_intensity)))
-        self.writel(S_FX, 5, "</diffuse>")
-
-        self.writel(S_FX, 5, "<specular>")
-        if specular_tex is not None:
-            self.writel(
-                S_FX, 6,
-                "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>".format(
-                    specular_tex))
-        else:
-            self.writel(S_FX, 6, "<color>{}</color>".format(numarr_alpha(
-                material.specular_color, material.specular_intensity)))
-        self.writel(S_FX, 5, "</specular>")
-
-        self.writel(S_FX, 5, "<shininess>")
-        self.writel(S_FX, 6, "<float>{}</float>".format(
-            material.specular_hardness))
-        self.writel(S_FX, 5, "</shininess>")
-
-        self.writel(S_FX, 5, "<reflective>")
-        self.writel(S_FX, 6, "<color>{}</color>".format(
-            numarr_alpha(material.mirror_color)))
-        self.writel(S_FX, 5, "</reflective>")
-
-        if (material.use_transparency):
-            self.writel(S_FX, 5, "<transparency>")
-            self.writel(S_FX, 6, "<float>{}</float>".format(material.alpha))
-            self.writel(S_FX, 5, "</transparency>")
-
-        self.writel(S_FX, 5, "<index_of_refraction>")
-        self.writel(S_FX, 6, "<float>{}</float>".format(material.specular_ior))
-        self.writel(S_FX, 5, "</index_of_refraction>")
-
-        self.writel(S_FX, 4, "</{}>".format(shtype))
-
-        self.writel(S_FX, 4, "<extra>")
-        self.writel(S_FX, 5, "<technique profile=\"FCOLLADA\">")
-        if (normal_tex):
-            self.writel(S_FX, 6, "<bump bumptype=\"NORMALMAP\">")
-            self.writel(
-                S_FX, 7,
-                "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>".format(
-                    normal_tex))
-            self.writel(S_FX, 6, "</bump>")
-
-        self.writel(S_FX, 5, "</technique>")
-        self.writel(S_FX, 5, "<technique profile=\"GOOGLEEARTH\">")
-        self.writel(S_FX, 6, "<double_sided>{}</double_sided>".format(
-            int(double_sided_hint)))
-        self.writel(S_FX, 5, "</technique>")
-
-        if (material.use_shadeless):
-            self.writel(S_FX, 5, "<technique profile=\"GODOT\">")
-            self.writel(S_FX, 6, "<unshaded>1</unshaded>")
-            self.writel(S_FX, 5, "</technique>")
-
-        self.writel(S_FX, 4, "</extra>")
-
-        self.writel(S_FX, 3, "</technique>")
-        self.writel(S_FX, 2, "</profile_COMMON>")
-        self.writel(S_FX, 1, "</effect>")
-
-        # Material (if active)
-        matid = self.new_id(material.name)
-        #matid = material.name
-        self.writel(S_MATS, 1, "<material id=\"{}\" name=\"{}\">".format(
-            matid, material.name))
-        self.writel(S_MATS, 2, "<instance_effect url=\"#{}\"/>".format(fxid))
-        self.writel(S_MATS, 1, "</material>")
-
-        self.material_cache[material] = matid
-        return matid
-
     def mesh_has_property(self, obj, mesh, property):
         if obj.get(property, None) is not None or mesh.get(property, None) is not None:
             print("Mesh has property: {}".format(property))
@@ -395,11 +176,14 @@ class DaeExporter:
             return True
 
     def export_mesh(self, node, armature=None, skeyindex=-1, skel_source=None,
-                    custom_name=None):
+                    export_name=None):
         mesh = node.data
 
         if (node.data in self.mesh_cache):
             return self.mesh_cache[mesh]
+
+        if export_name is None or export_name == "":
+            export_name = mesh.name
 
         if (skeyindex == -1 and mesh.shape_keys is not None and len(
                 mesh.shape_keys.key_blocks) and self.config["use_shape_key_export"]):
@@ -425,9 +209,9 @@ class DaeExporter:
                 node.data = v
                 node.data.update()
                 if (armature and k == 0):
-                    md = self.export_mesh(node, armature, k, mid, shape.name)
+                    md = self.export_mesh(node, armature, k, mid, shape.name, export_name)
                 else:
-                    md = self.export_mesh(node, None, k, None, shape.name)
+                    md = self.export_mesh(node, None, k, None, shape.name, export_name)
 
                 node.data = p
                 node.data.update()
@@ -543,10 +327,6 @@ class DaeExporter:
         apply_modifiers = len(node.modifiers) and self.config[
             "use_mesh_modifiers"]
 
-        name_to_use = mesh.name
-        if (custom_name is not None and custom_name != ""):
-            name_to_use = custom_name
-
         mesh = node.to_mesh(self.scene, apply_modifiers,
                             "RENDER")  # TODO: Review
         if(armature_modifier):
@@ -612,7 +392,7 @@ class DaeExporter:
 
                 if (mat is not None):
                     materials[f.material_index] = self.export_material(
-                        mat, mesh.show_double_sided)
+                        mat, mesh.show_double_sided, export_name)
                 else:
                     materials[f.material_index] = None
 
@@ -686,10 +466,10 @@ class DaeExporter:
                 indices.append(vi)
 
         #meshid = self.new_id("mesh")
-        meshid = self.new_id(name_to_use)
+        meshid = self.new_id(export_name)
         self.writel(
             S_GEOM, 1, "<geometry id=\"{}\" name=\"{}\">".format(
-                meshid, name_to_use))
+                meshid, export_name))
 
         self.writel(S_GEOM, 2, "<mesh>")
 
@@ -844,7 +624,6 @@ class DaeExporter:
         for m in surface_indices:
             indices = surface_indices[m]
             mat = materials[m]
-
             if (mat is not None):
                 matref = self.new_id("trimat")
                 self.writel(
@@ -855,7 +634,7 @@ class DaeExporter:
             else:
                 self.writel(S_GEOM, 3, "<{} count=\"{}\">".format(
                     prim_type, int(len(indices))))  # TODO: Implement material
-
+            
             self.writel(
                 S_GEOM, 4, "<input semantic=\"VERTEX\" "
                 "source=\"#{}-vertices\" offset=\"0\"/>".format(meshid))
@@ -953,7 +732,8 @@ class DaeExporter:
         if (armature is not None and (
                 skel_source is not None or skeyindex == -1)):
             #contid = self.new_id("controller")
-            contid = self.new_id(armature.name)
+            armature_name = armature.get("export_name", armature.name)
+            contid = self.new_id(armature_name)
 
             self.writel(S_SKIN, 1, "<controller id=\"{}\">".format(contid))
             if (skel_source is not None):
@@ -1065,7 +845,7 @@ class DaeExporter:
 
         return meshdata
 
-    def export_mesh_node(self, node, il):
+    def export_mesh_node(self, node, il, export_name=""):
         if (node.data is None):
             return
 
@@ -1107,7 +887,7 @@ class DaeExporter:
                                     self.armature_for_morph[
                                         node] = self.objects[t.id.name]
 
-        meshdata = self.export_mesh(node, armature)
+        meshdata = self.export_mesh(node, armature, export_name=export_name)
         close_controller = False
 
         if ("skin_id" in meshdata):
@@ -1200,7 +980,7 @@ class DaeExporter:
             il -= 1
             self.writel(S_NODES, il, "</node>")
 
-    def export_armature_node(self, node, il):
+    def export_armature_node(self, node, il, export_name=""):
         if (node.data is None):
             return
 
@@ -1209,8 +989,8 @@ class DaeExporter:
         armature = node.data
         self.skeleton_info[node] = {
             "bone_count": 0,
-            "id": self.new_id(node.name),
-            "name": node.name,
+            "id": self.new_id(export_name),
+            "name": export_name,
             "bone_index": {},
             "bone_ids": {},
             "bone_names": [],
@@ -1230,99 +1010,7 @@ class DaeExporter:
                     if (x.type == "ACTION"):
                         self.action_constraints.append(x.action)
 
-    def export_camera_node(self, node, il):
-        if (node.data is None):
-            return
-
-        camera = node.data
-        camid = self.new_id("camera")
-        self.writel(S_CAMS, 1, "<camera id=\"{}\" name=\"{}\">".format(
-            camid, camera.name))
-        self.writel(S_CAMS, 2, "<optics>")
-        self.writel(S_CAMS, 3, "<technique_common>")
-        if (camera.type == "PERSP"):
-            self.writel(S_CAMS, 4, "<perspective>")
-            self.writel(S_CAMS, 5, "<yfov>{}</yfov>".format(
-                    math.degrees(camera.angle)))  # TODO: Review
-            self.writel(S_CAMS, 5, "<aspect_ratio>{}</aspect_ratio>".format(
-                self.scene.render.resolution_x /
-                self.scene.render.resolution_y))
-            self.writel(S_CAMS, 5, "<znear>{}</znear>".format(
-                camera.clip_start))
-            self.writel(S_CAMS, 5, "<zfar>{}</zfar>".format(camera.clip_end))
-            self.writel(S_CAMS, 4, "</perspective>")
-        else:
-            self.writel(S_CAMS, 4, "<orthographic>")
-            self.writel(S_CAMS, 5, "<xmag>{}</xmag>".format(
-                camera.ortho_scale * 0.5))  # TODO: Review
-            self.writel(S_CAMS, 5, "<aspect_ratio>{}</aspect_ratio>".format(
-                self.scene.render.resolution_x /
-                self.scene.render.resolution_y))
-            self.writel(S_CAMS, 5, "<znear>{}</znear>".format(
-                camera.clip_start))
-            self.writel(S_CAMS, 5, "<zfar>{}</zfar>".format(camera.clip_end))
-            self.writel(S_CAMS, 4, "</orthographic>")
-
-        self.writel(S_CAMS, 3, "</technique_common>")
-        self.writel(S_CAMS, 2, "</optics>")
-        self.writel(S_CAMS, 1, "</camera>")
-
-        self.writel(
-            S_NODES, il, "<instance_camera url=\"#{}\"/>".format(camid))
-
-    def export_lamp_node(self, node, il):
-        if (node.data is None):
-            return
-
-        light = node.data
-        lightid = self.new_id("light")
-        self.writel(S_LAMPS, 1, "<light id=\"{}\" name=\"{}\">".format(
-                lightid, light.name))
-        self.writel(S_LAMPS, 3, "<technique_common>")
-
-        if (light.type == "POINT"):
-            self.writel(S_LAMPS, 4, "<point>")
-            self.writel(S_LAMPS, 5, "<color>{}</color>".format(
-                strarr(light.color)))
-            # Convert to linear attenuation
-            att_by_distance = 2.0 / light.distance
-            self.writel(
-                S_LAMPS, 5,
-                "<linear_attenuation>{}</linear_attenuation>".format(
-                    att_by_distance))
-            if (light.use_sphere):
-                self.writel(S_LAMPS, 5, "<zfar>{}</zfar>".format(
-                    light.distance))
-
-            self.writel(S_LAMPS, 4, "</point>")
-        elif (light.type == "SPOT"):
-            self.writel(S_LAMPS, 4, "<spot>")
-            self.writel(S_LAMPS, 5, "<color>{}</color>".format(
-                strarr(light.color)))
-            # Convert to linear attenuation
-            att_by_distance = 2.0 / light.distance
-            self.writel(
-                S_LAMPS, 5,
-                "<linear_attenuation>{}</linear_attenuation>".format(
-                    att_by_distance))
-            self.writel(
-                S_LAMPS, 5, "<falloff_angle>{}</falloff_angle>".format(
-                    math.degrees(light.spot_size / 2)))
-            self.writel(S_LAMPS, 4, "</spot>")
-
-        else:  # Write a sun lamp for everything else (not supported)
-            self.writel(S_LAMPS, 4, "<directional>")
-            self.writel(S_LAMPS, 5, "<color>{}</color>".format(
-                strarr(light.color)))
-            self.writel(S_LAMPS, 4, "</directional>")
-
-        self.writel(S_LAMPS, 3, "</technique_common>")
-        self.writel(S_LAMPS, 1, "</light>")
-
-        self.writel(S_NODES, il, "<instance_light url=\"#{}\"/>".format(
-            lightid))
-
-    def export_empty_node(self, node, il):
+    def export_empty_node(self, node, il, export_name=""):
         self.writel(S_NODES, 4, "<extra>")
         self.writel(S_NODES, 5, "<technique profile=\"GODOT\">")
         self.writel(
@@ -1332,12 +1020,12 @@ class DaeExporter:
         self.writel(S_NODES, 5, "</technique>")
         self.writel(S_NODES, 4, "</extra>")
 
-    def export_curve(self, curve):
+    def export_curve(self, curve, export_name=""):
         splineid = self.new_id("spline")
 
         self.writel(
             S_GEOM, 1, "<geometry id=\"{}\" name=\"{}\">".format(
-                splineid, curve.name))
+                splineid, export_name))
         self.writel(S_GEOM, 2, "<spline closed=\"0\">")
 
         points = []
@@ -1498,15 +1186,176 @@ class DaeExporter:
 
         return splineid
 
-    def export_curve_node(self, node, il):
+    def export_curve_node(self, node, il, export_name=""):
         if (node.data is None):
             return
 
-        curveid = self.export_curve(node.data)
+        curveid = self.export_curve(node.data, export_name)
 
         self.writel(S_NODES, il, "<instance_geometry url=\"#{}\">".format(
             curveid))
         self.writel(S_NODES, il, "</instance_geometry>")
+
+    def export_material(self, material, double_sided_hint=True, export_name=""):
+        material_id = self.material_cache.get(material)
+        if material_id:
+            return material_id
+
+        # Material (if active)
+        matid = self.new_id(export_name)
+
+        if self.can_export_type("MATERIAL"):
+            fxid = self.new_id(export_name, "-fx")
+
+            self.writel(S_FX, 1, "<effect id=\"{}\" name=\"{}-fx\">".format(fxid, export_name))
+            self.writel(S_FX, 2, "<profile_COMMON>")
+
+            # Find and fetch the textures and create sources
+            sampler_table = {}
+            diffuse_tex = None
+            specular_tex = None
+            emission_tex = None
+            normal_tex = None
+            for i in range(len(material.texture_slots)):
+                ts = material.texture_slots[i]
+                if not ts:
+                    continue
+                if not ts.use:
+                    continue
+                if not ts.texture:
+                    continue
+                if ts.texture.type != "IMAGE":
+                    continue
+
+                if ts.texture.image is None:
+                    continue
+
+                # Image
+                imgid = self.export_image(ts.texture.image)
+
+                # Surface
+                surface_sid = self.new_id("fx_surf")
+                self.writel(S_FX, 3, "<newparam sid=\"{}\">".format(surface_sid))
+                self.writel(S_FX, 4, "<surface type=\"2D\">")
+                self.writel(S_FX, 5, "<init_from>{}</init_from>".format(imgid))
+                self.writel(S_FX, 5, "<format>A8R8G8B8</format>")
+                self.writel(S_FX, 4, "</surface>")
+                self.writel(S_FX, 3, "</newparam>")
+
+                # Sampler
+                sampler_sid = self.new_id("fx_sampler")
+                self.writel(S_FX, 3, "<newparam sid=\"{}\">".format(sampler_sid))
+                self.writel(S_FX, 4, "<sampler2D>")
+                self.writel(S_FX, 5, "<source>{}</source>".format(surface_sid))
+                self.writel(S_FX, 4, "</sampler2D>")
+                self.writel(S_FX, 3, "</newparam>")
+                sampler_table[i] = sampler_sid
+
+                if ts.use_map_color_diffuse and diffuse_tex is None:
+                    diffuse_tex = sampler_sid
+                if ts.use_map_color_spec and specular_tex is None:
+                    specular_tex = sampler_sid
+                if ts.use_map_emit and emission_tex is None:
+                    emission_tex = sampler_sid
+                if ts.use_map_normal and normal_tex is None:
+                    normal_tex = sampler_sid
+
+            self.writel(S_FX, 3, "<technique sid=\"common\">")
+            shtype = "blinn"
+            self.writel(S_FX, 4, "<{}>".format(shtype))
+
+            self.writel(S_FX, 5, "<emission>")
+            if emission_tex is not None:
+                self.writel(
+                    S_FX, 6, "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>"
+                    .format(emission_tex))
+            else:
+                # TODO: More accurate coloring, if possible
+                self.writel(S_FX, 6, "<color>{}</color>".format(
+                    numarr_alpha(material.diffuse_color, material.emit)))
+            self.writel(S_FX, 5, "</emission>")
+
+            self.writel(S_FX, 5, "<ambient>")
+            self.writel(S_FX, 6, "<color>{}</color>".format(
+                numarr_alpha(self.scene.world.ambient_color, material.ambient)))
+            self.writel(S_FX, 5, "</ambient>")
+
+            self.writel(S_FX, 5, "<diffuse>")
+            if diffuse_tex is not None:
+                self.writel(
+                    S_FX, 6, "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>"
+                    .format(diffuse_tex))
+            else:
+                self.writel(S_FX, 6, "<color>{}</color>".format(numarr_alpha(
+                    material.diffuse_color, material.diffuse_intensity)))
+            self.writel(S_FX, 5, "</diffuse>")
+
+            self.writel(S_FX, 5, "<specular>")
+            if specular_tex is not None:
+                self.writel(
+                    S_FX, 6,
+                    "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>".format(
+                        specular_tex))
+            else:
+                self.writel(S_FX, 6, "<color>{}</color>".format(numarr_alpha(
+                    material.specular_color, material.specular_intensity)))
+            self.writel(S_FX, 5, "</specular>")
+
+            self.writel(S_FX, 5, "<shininess>")
+            self.writel(S_FX, 6, "<float>{}</float>".format(
+                material.specular_hardness))
+            self.writel(S_FX, 5, "</shininess>")
+
+            self.writel(S_FX, 5, "<reflective>")
+            self.writel(S_FX, 6, "<color>{}</color>".format(
+                numarr_alpha(material.mirror_color)))
+            self.writel(S_FX, 5, "</reflective>")
+
+            if (material.use_transparency):
+                self.writel(S_FX, 5, "<transparency>")
+                self.writel(S_FX, 6, "<float>{}</float>".format(material.alpha))
+                self.writel(S_FX, 5, "</transparency>")
+
+            self.writel(S_FX, 5, "<index_of_refraction>")
+            self.writel(S_FX, 6, "<float>{}</float>".format(material.specular_ior))
+            self.writel(S_FX, 5, "</index_of_refraction>")
+
+            self.writel(S_FX, 4, "</{}>".format(shtype))
+
+            self.writel(S_FX, 4, "<extra>")
+            self.writel(S_FX, 5, "<technique profile=\"FCOLLADA\">")
+            if (normal_tex):
+                self.writel(S_FX, 6, "<bump bumptype=\"NORMALMAP\">")
+                self.writel(
+                    S_FX, 7,
+                    "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>".format(
+                        normal_tex))
+                self.writel(S_FX, 6, "</bump>")
+
+            self.writel(S_FX, 5, "</technique>")
+            self.writel(S_FX, 5, "<technique profile=\"GOOGLEEARTH\">")
+            self.writel(S_FX, 6, "<double_sided>{}</double_sided>".format(
+                int(double_sided_hint)))
+            self.writel(S_FX, 5, "</technique>")
+
+            if (material.use_shadeless):
+                self.writel(S_FX, 5, "<technique profile=\"GODOT\">")
+                self.writel(S_FX, 6, "<unshaded>1</unshaded>")
+                self.writel(S_FX, 5, "</technique>")
+
+            self.writel(S_FX, 4, "</extra>")
+
+            self.writel(S_FX, 3, "</technique>")
+            self.writel(S_FX, 2, "</profile_COMMON>")
+            self.writel(S_FX, 1, "</effect>")
+
+            self.writel(S_MATS, 1, "<material id=\"{}\" name=\"{}\">".format(
+                matid, export_name))
+            self.writel(S_MATS, 2, "<instance_effect url=\"#{}\"/>".format(fxid))
+            self.writel(S_MATS, 1, "</material>")
+
+        self.material_cache[material] = matid
+        return matid
 
     def export_node(self, node, il):
         if (node not in self.valid_nodes):
@@ -1515,12 +1364,15 @@ class DaeExporter:
         prev_node = self.active_object
         self.active_object = node
 
+        export_name = node.get("export_name", node.name)
+        exportid = self.new_id(export_name)
+
         export_armature_enabled = True
 
         if node.type != "ARMATURE" or export_armature_enabled == True:
             self.writel(
                 S_NODES, il, "<node id=\"{}\" name=\"{}\" type=\"NODE\">".format(
-                    self.validate_id(node.name), node.name))
+                    self.validate_id(exportid), export_name))
             il += 1
 
         if node.type != "ARMATURE" or export_armature_enabled == True:
@@ -1528,17 +1380,13 @@ class DaeExporter:
                 S_NODES, il, "<matrix sid=\"transform\">{}</matrix>".format(
                     strmtx(node.matrix_local)))
         if (node.type == "MESH"):
-            self.export_mesh_node(node, il)
+            self.export_mesh_node(node, il, export_name=export_name)
         elif (node.type == "CURVE"):
-            self.export_curve_node(node, il)
+            self.export_curve_node(node, il, export_name=export_name)
         elif (node.type == "ARMATURE"):
-            self.export_armature_node(node, il)
-        elif (node.type == "CAMERA"):
-            self.export_camera_node(node, il)
-        elif (node.type == "LAMP"):
-            self.export_lamp_node(node, il)
+            self.export_armature_node(node, il, export_name=export_name)
         elif (node.type == "EMPTY"):
-            self.export_empty_node(node, il)
+            self.export_empty_node(node, il, export_name=export_name)
 
         for x in sorted(node.children, key=lambda x: x.name):
             self.export_node(x, il)
@@ -1548,8 +1396,8 @@ class DaeExporter:
             self.writel(S_NODES, il, "</node>")
         self.active_object = prev_node
 
-    def is_node_valid(self, node):
-        if (node.type not in self.config["object_types"]):
+    def can_export_type(self, objtype):
+        if (objtype not in self.config["object_types"]):
             return False
 
         # if (self.config["use_active_layers"]):
@@ -1578,7 +1426,7 @@ class DaeExporter:
         for obj in self.objects:
             if (obj in self.valid_nodes):
                 continue
-            if (self.is_node_valid(obj)):
+            if (self.can_export_type(obj.type)):
                 n = obj
                 while (n is not None):
                     if (n not in self.valid_nodes):
@@ -1940,11 +1788,9 @@ class DaeExporter:
     def export(self):
         self.writel(S_GEOM, 0, "<library_geometries>")
         self.writel(S_CONT, 0, "<library_controllers>")
-        self.writel(S_CAMS, 0, "<library_cameras>")
-        self.writel(S_LAMPS, 0, "<library_lights>")
-        self.writel(S_IMGS, 0, "<library_images>")
-        self.writel(S_MATS, 0, "<library_materials>")
-        self.writel(S_FX, 0, "<library_effects>")
+        if self.can_export_type("MATERIAL"):
+            self.writel(S_MATS, 0, "<library_materials>")
+            self.writel(S_FX, 0, "<library_effects>")
 
         self.export_asset()
         self.export_scene()
@@ -1963,11 +1809,10 @@ class DaeExporter:
             del self.sections[S_SKIN]
 
         self.writel(S_CONT, 0, "</library_controllers>")
-        self.writel(S_CAMS, 0, "</library_cameras>")
-        self.writel(S_LAMPS, 0, "</library_lights>")
-        self.writel(S_IMGS, 0, "</library_images>")
-        self.writel(S_MATS, 0, "</library_materials>")
-        self.writel(S_FX, 0, "</library_effects>")
+        
+        if self.can_export_type("MATERIAL"):
+            self.writel(S_MATS, 0, "</library_materials>")
+            self.writel(S_FX, 0, "</library_effects>")
 
         self.purge_empty_nodes()
 
