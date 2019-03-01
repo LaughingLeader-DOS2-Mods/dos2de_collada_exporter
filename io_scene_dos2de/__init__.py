@@ -714,7 +714,7 @@ class ExportDAE(Operator, ExportHelper):
                 self.preset_applied_extra_flag = False
             return
         elif self.selected_preset == "MODEL":
-            #self.object_types = {"ARMATURE", "MESH", "MATERIAL"}
+            self.object_types = {"ARMATURE", "MESH", "MATERIAL"}
             self.object_types = {"ARMATURE", "MESH"}
 
             if self.yup_local_override is False:
@@ -983,11 +983,15 @@ class ExportDAE(Operator, ExportHelper):
 
         return {'RUNNING_MODAL'}
 
-    def can_modify_object(self, obj):
+    def can_modify_object(self, context, obj):
         if self.use_export_visible and obj.hide or obj.hide_select:
             return False
         if self.use_export_selected and obj.select == False:
             return False
+        if self.use_active_layers:
+            for i in range(20):
+                if context.scene.layers[i] and not obj.layers[i]:
+                    return False
         return True
 
     def merge_armatures(self, context, modifyObjects):
@@ -1177,17 +1181,8 @@ class ExportDAE(Operator, ExportHelper):
             if obj.select:
                 selectedObjects.append(obj)
                 obj.select = False
-        
-        if self.use_active_layers:
-            for i in range(20):
-                if context.scene.layers[i]:
-                    for obj in context.scene.objects:
-                        if obj.layers[i] and self.can_modify_object(obj):
-                            targetObjects.append(obj)
-        elif self.use_export_selected:
-            targetObjects.extend(selectedObjects)
-        else:
-            targetObjects.extend(context.scene.objects)
+            if self.can_modify_object(context, obj):
+                targetObjects.append(obj)
 
         for obj in targetObjects:
             if not obj.parent:
@@ -1196,9 +1191,10 @@ class ExportDAE(Operator, ExportHelper):
                 copies.append(copy)
 
                 for childobj in obj.children:
-                    childcopy = self.copy_obj(context, childobj, copy)
-                    modifyObjects.append(childcopy)
-                    copies.append(childcopy)
+                    if self.can_modify_object(context, childobj):
+                        childcopy = self.copy_obj(context, childobj, copy)
+                        modifyObjects.append(childcopy)
+                        copies.append(childcopy)
 
         merging_enabled = hasattr(context.scene, "llexportmerge")
 
@@ -1214,11 +1210,11 @@ class ExportDAE(Operator, ExportHelper):
             if self.yup_enabled == "ROTATE":
                     if not obj.parent:
                         print("  Rotating {} to y-up. | (x={}, y={}, z={})".format(obj.name, degrees(obj.rotation_euler[0]),
-                                    degrees(childobj.rotation_euler[1]), degrees(obj.rotation_euler[2]))
+                                    degrees(obj.rotation_euler[1]), degrees(obj.rotation_euler[2]))
                                 )
                         obj.rotation_euler = (obj.rotation_euler.to_matrix() * Matrix.Rotation(radians(-90), 3, 'X')).to_euler()
                         print("  Rotated {} to y-up. | (x={}, y={}, z={})".format(obj.name, degrees(obj.rotation_euler[0]),
-                                    degrees(childobj.rotation_euler[1]), degrees(obj.rotation_euler[2]))
+                                    degrees(obj.rotation_euler[1]), degrees(obj.rotation_euler[2]))
                                 )
 
                         self.transform_apply(context, obj, rotation=True)
