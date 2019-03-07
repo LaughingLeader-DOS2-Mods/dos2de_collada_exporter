@@ -343,8 +343,8 @@ class DaeExporter:
             bmesh.ops.triangulate(bm, faces=bm.faces)
             bm.to_mesh(mesh)
             bm.free()
-
-        mesh.update(calc_tessface=True)
+            mesh.update(calc_tessface=True)
+        
         vertices = []
         vertex_map = {}
         surface_indices = {}
@@ -1230,14 +1230,11 @@ class DaeExporter:
                 if ts.texture.image is None:
                     continue
 
-                # Image
-                imgid = self.export_image(ts.texture.image)
-
                 # Surface
                 surface_sid = self.new_id("fx_surf")
                 self.writel(S_FX, 3, "<newparam sid=\"{}\">".format(surface_sid))
                 self.writel(S_FX, 4, "<surface type=\"2D\">")
-                self.writel(S_FX, 5, "<init_from>{}</init_from>".format(imgid))
+                self.writel(S_FX, 5, "<init_from></init_from>")
                 self.writel(S_FX, 5, "<format>A8R8G8B8</format>")
                 self.writel(S_FX, 4, "</surface>")
                 self.writel(S_FX, 3, "</newparam>")
