@@ -1196,160 +1196,219 @@ class DaeExporter:
             curveid))
         self.writel(S_NODES, il, "</instance_geometry>")
 
+    def export_image(self, image, export_name=""):
+        img_id = self.image_cache.get(image)
+        if img_id:
+            return img_id
+
+        imgpath = image.filepath
+        if imgpath.startswith("//"):
+            imgpath = bpy.path.abspath(imgpath)
+
+        if (self.config["use_copy_images"]):
+            basedir = os.path.join(os.path.dirname(self.path), "images")
+            if (not os.path.isdir(basedir)):
+                os.makedirs(basedir)
+
+            if os.path.isfile(imgpath):
+                dstfile = os.path.join(basedir, os.path.basename(imgpath))
+
+                if not os.path.isfile(dstfile):
+                    shutil.copy(imgpath, dstfile)
+                imgpath = os.path.join("images", os.path.basename(imgpath))
+            else:
+                img_tmp_path = image.filepath
+                if img_tmp_path.lower().endswith(
+                    tuple(bpy.path.extensions_image)):
+                    image.filepath = os.path.join(
+                        basedir, os.path.basename(img_tmp_path))
+                else:
+                    image.filepath = os.path.join(
+                        basedir, "{}.png".format(image.name))
+
+                dstfile = os.path.join(
+                    basedir, os.path.basename(image.filepath))
+
+                if not os.path.isfile(dstfile):
+                    image.save()
+                imgpath = os.path.join(
+                    "images", os.path.basename(image.filepath))
+                image.filepath = img_tmp_path
+
+        else:
+            try:
+                imgpath = os.path.relpath(
+                    imgpath, os.path.dirname(self.path)).replace("\\", "/")
+            except:
+                # TODO: Review, not sure why it fails
+                pass
+
+        imgid = self.new_id("image")
+
+        print("FOR: {}".format(imgpath))
+
+        self.writel(S_IMGS, 1, "<image id=\"{}\" name=\"{}\">".format(
+            imgid, image.name))
+        self.writel(S_IMGS, 2, "<init_from>{}</init_from>".format(imgpath))
+        self.writel(S_IMGS, 1, "</image>")
+        self.image_cache[image] = imgid
+        return imgid
+
     def export_material(self, material, double_sided_hint=True, export_name=""):
         material_id = self.material_cache.get(material)
         if material_id:
             return material_id
 
+        fxid = self.new_id("fx")
+        self.writel(S_FX, 1, "<effect id=\"{}\" name=\"{}-fx\">".format(
+            fxid, material.name))
+        self.writel(S_FX, 2, "<profile_COMMON>")
+
+        # Find and fetch the textures and create sources
+        sampler_table = {}
+        diffuse_tex = None
+        specular_tex = None
+        emission_tex = None
+        normal_tex = None
+        for i in range(len(material.texture_slots)):
+            ts = material.texture_slots[i]
+            if not ts:
+                continue
+            if not ts.use:
+                continue
+            if not ts.texture:
+                continue
+            if ts.texture.type != "IMAGE":
+                continue
+
+            if ts.texture.image is None:
+                continue
+
+            # Image
+            imgid = self.export_image(ts.texture.image, export_name)
+
+            # Surface
+            surface_sid = self.new_id("fx_surf")
+            self.writel(S_FX, 3, "<newparam sid=\"{}\">".format(surface_sid))
+            self.writel(S_FX, 4, "<surface type=\"2D\">")
+            self.writel(S_FX, 5, "<init_from>{}</init_from>".format(imgid))
+            self.writel(S_FX, 5, "<format>A8R8G8B8</format>")
+            self.writel(S_FX, 4, "</surface>")
+            self.writel(S_FX, 3, "</newparam>")
+
+            # Sampler
+            sampler_sid = self.new_id("fx_sampler")
+            self.writel(S_FX, 3, "<newparam sid=\"{}\">".format(sampler_sid))
+            self.writel(S_FX, 4, "<sampler2D>")
+            self.writel(S_FX, 5, "<source>{}</source>".format(surface_sid))
+            self.writel(S_FX, 4, "</sampler2D>")
+            self.writel(S_FX, 3, "</newparam>")
+            sampler_table[i] = sampler_sid
+
+            if ts.use_map_color_diffuse and diffuse_tex is None:
+                diffuse_tex = sampler_sid
+            if ts.use_map_color_spec and specular_tex is None:
+                specular_tex = sampler_sid
+            if ts.use_map_emit and emission_tex is None:
+                emission_tex = sampler_sid
+            if ts.use_map_normal and normal_tex is None:
+                normal_tex = sampler_sid
+
+        self.writel(S_FX, 3, "<technique sid=\"common\">")
+        shtype = "blinn"
+        self.writel(S_FX, 4, "<{}>".format(shtype))
+
+        self.writel(S_FX, 5, "<emission>")
+        if emission_tex is not None:
+            self.writel(
+                S_FX, 6, "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>"
+                .format(emission_tex))
+        else:
+            # TODO: More accurate coloring, if possible
+            self.writel(S_FX, 6, "<color>{}</color>".format(
+                numarr_alpha(material.diffuse_color, material.emit)))
+        self.writel(S_FX, 5, "</emission>")
+
+        self.writel(S_FX, 5, "<ambient>")
+        self.writel(S_FX, 6, "<color>{}</color>".format(
+            numarr_alpha(self.scene.world.ambient_color, material.ambient)))
+        self.writel(S_FX, 5, "</ambient>")
+
+        self.writel(S_FX, 5, "<diffuse>")
+        if diffuse_tex is not None:
+            self.writel(
+                S_FX, 6, "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>"
+                .format(diffuse_tex))
+        else:
+            self.writel(S_FX, 6, "<color>{}</color>".format(numarr_alpha(
+                material.diffuse_color, material.diffuse_intensity)))
+        self.writel(S_FX, 5, "</diffuse>")
+
+        self.writel(S_FX, 5, "<specular>")
+        if specular_tex is not None:
+            self.writel(
+                S_FX, 6,
+                "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>".format(
+                    specular_tex))
+        else:
+            self.writel(S_FX, 6, "<color>{}</color>".format(numarr_alpha(
+                material.specular_color, material.specular_intensity)))
+        self.writel(S_FX, 5, "</specular>")
+
+        self.writel(S_FX, 5, "<shininess>")
+        self.writel(S_FX, 6, "<float>{}</float>".format(
+            material.specular_hardness))
+        self.writel(S_FX, 5, "</shininess>")
+
+        self.writel(S_FX, 5, "<reflective>")
+        self.writel(S_FX, 6, "<color>{}</color>".format(
+            numarr_alpha(material.mirror_color)))
+        self.writel(S_FX, 5, "</reflective>")
+
+        if (material.use_transparency):
+            self.writel(S_FX, 5, "<transparency>")
+            self.writel(S_FX, 6, "<float>{}</float>".format(material.alpha))
+            self.writel(S_FX, 5, "</transparency>")
+
+        self.writel(S_FX, 5, "<index_of_refraction>")
+        self.writel(S_FX, 6, "<float>{}</float>".format(material.specular_ior))
+        self.writel(S_FX, 5, "</index_of_refraction>")
+
+        self.writel(S_FX, 4, "</{}>".format(shtype))
+
+        self.writel(S_FX, 4, "<extra>")
+        self.writel(S_FX, 5, "<technique profile=\"FCOLLADA\">")
+        if (normal_tex):
+            self.writel(S_FX, 6, "<bump bumptype=\"NORMALMAP\">")
+            self.writel(
+                S_FX, 7,
+                "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>".format(
+                    normal_tex))
+            self.writel(S_FX, 6, "</bump>")
+
+        self.writel(S_FX, 5, "</technique>")
+        self.writel(S_FX, 5, "<technique profile=\"GOOGLEEARTH\">")
+        self.writel(S_FX, 6, "<double_sided>{}</double_sided>".format(
+            int(double_sided_hint)))
+        self.writel(S_FX, 5, "</technique>")
+
+        if (material.use_shadeless):
+            self.writel(S_FX, 5, "<technique profile=\"GODOT\">")
+            self.writel(S_FX, 6, "<unshaded>1</unshaded>")
+            self.writel(S_FX, 5, "</technique>")
+
+        self.writel(S_FX, 4, "</extra>")
+
+        self.writel(S_FX, 3, "</technique>")
+        self.writel(S_FX, 2, "</profile_COMMON>")
+        self.writel(S_FX, 1, "</effect>")
+
         # Material (if active)
-        matid = self.new_id(export_name)
-
-        if self.can_export_type("MATERIAL"):
-            fxid = self.new_id(export_name, "-fx")
-
-            self.writel(S_FX, 1, "<effect id=\"{}\" name=\"{}-fx\">".format(fxid, export_name))
-            self.writel(S_FX, 2, "<profile_COMMON>")
-
-            # Find and fetch the textures and create sources
-            sampler_table = {}
-            diffuse_tex = None
-            specular_tex = None
-            emission_tex = None
-            normal_tex = None
-            for i in range(len(material.texture_slots)):
-                ts = material.texture_slots[i]
-                if not ts:
-                    continue
-                if not ts.use:
-                    continue
-                if not ts.texture:
-                    continue
-                if ts.texture.type != "IMAGE":
-                    continue
-
-                if ts.texture.image is None:
-                    continue
-
-                # Surface
-                surface_sid = self.new_id("fx_surf")
-                self.writel(S_FX, 3, "<newparam sid=\"{}\">".format(surface_sid))
-                self.writel(S_FX, 4, "<surface type=\"2D\">")
-                self.writel(S_FX, 5, "<init_from></init_from>")
-                self.writel(S_FX, 5, "<format>A8R8G8B8</format>")
-                self.writel(S_FX, 4, "</surface>")
-                self.writel(S_FX, 3, "</newparam>")
-
-                # Sampler
-                sampler_sid = self.new_id("fx_sampler")
-                self.writel(S_FX, 3, "<newparam sid=\"{}\">".format(sampler_sid))
-                self.writel(S_FX, 4, "<sampler2D>")
-                self.writel(S_FX, 5, "<source>{}</source>".format(surface_sid))
-                self.writel(S_FX, 4, "</sampler2D>")
-                self.writel(S_FX, 3, "</newparam>")
-                sampler_table[i] = sampler_sid
-
-                if ts.use_map_color_diffuse and diffuse_tex is None:
-                    diffuse_tex = sampler_sid
-                if ts.use_map_color_spec and specular_tex is None:
-                    specular_tex = sampler_sid
-                if ts.use_map_emit and emission_tex is None:
-                    emission_tex = sampler_sid
-                if ts.use_map_normal and normal_tex is None:
-                    normal_tex = sampler_sid
-
-            self.writel(S_FX, 3, "<technique sid=\"common\">")
-            shtype = "blinn"
-            self.writel(S_FX, 4, "<{}>".format(shtype))
-
-            self.writel(S_FX, 5, "<emission>")
-            if emission_tex is not None:
-                self.writel(
-                    S_FX, 6, "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>"
-                    .format(emission_tex))
-            else:
-                # TODO: More accurate coloring, if possible
-                self.writel(S_FX, 6, "<color>{}</color>".format(
-                    numarr_alpha(material.diffuse_color, material.emit)))
-            self.writel(S_FX, 5, "</emission>")
-
-            self.writel(S_FX, 5, "<ambient>")
-            self.writel(S_FX, 6, "<color>{}</color>".format(
-                numarr_alpha(self.scene.world.ambient_color, material.ambient)))
-            self.writel(S_FX, 5, "</ambient>")
-
-            self.writel(S_FX, 5, "<diffuse>")
-            if diffuse_tex is not None:
-                self.writel(
-                    S_FX, 6, "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>"
-                    .format(diffuse_tex))
-            else:
-                self.writel(S_FX, 6, "<color>{}</color>".format(numarr_alpha(
-                    material.diffuse_color, material.diffuse_intensity)))
-            self.writel(S_FX, 5, "</diffuse>")
-
-            self.writel(S_FX, 5, "<specular>")
-            if specular_tex is not None:
-                self.writel(
-                    S_FX, 6,
-                    "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>".format(
-                        specular_tex))
-            else:
-                self.writel(S_FX, 6, "<color>{}</color>".format(numarr_alpha(
-                    material.specular_color, material.specular_intensity)))
-            self.writel(S_FX, 5, "</specular>")
-
-            self.writel(S_FX, 5, "<shininess>")
-            self.writel(S_FX, 6, "<float>{}</float>".format(
-                material.specular_hardness))
-            self.writel(S_FX, 5, "</shininess>")
-
-            self.writel(S_FX, 5, "<reflective>")
-            self.writel(S_FX, 6, "<color>{}</color>".format(
-                numarr_alpha(material.mirror_color)))
-            self.writel(S_FX, 5, "</reflective>")
-
-            if (material.use_transparency):
-                self.writel(S_FX, 5, "<transparency>")
-                self.writel(S_FX, 6, "<float>{}</float>".format(material.alpha))
-                self.writel(S_FX, 5, "</transparency>")
-
-            self.writel(S_FX, 5, "<index_of_refraction>")
-            self.writel(S_FX, 6, "<float>{}</float>".format(material.specular_ior))
-            self.writel(S_FX, 5, "</index_of_refraction>")
-
-            self.writel(S_FX, 4, "</{}>".format(shtype))
-
-            self.writel(S_FX, 4, "<extra>")
-            self.writel(S_FX, 5, "<technique profile=\"FCOLLADA\">")
-            if (normal_tex):
-                self.writel(S_FX, 6, "<bump bumptype=\"NORMALMAP\">")
-                self.writel(
-                    S_FX, 7,
-                    "<texture texture=\"{}\" texcoord=\"CHANNEL1\"/>".format(
-                        normal_tex))
-                self.writel(S_FX, 6, "</bump>")
-
-            self.writel(S_FX, 5, "</technique>")
-            self.writel(S_FX, 5, "<technique profile=\"GOOGLEEARTH\">")
-            self.writel(S_FX, 6, "<double_sided>{}</double_sided>".format(
-                int(double_sided_hint)))
-            self.writel(S_FX, 5, "</technique>")
-
-            if (material.use_shadeless):
-                self.writel(S_FX, 5, "<technique profile=\"GODOT\">")
-                self.writel(S_FX, 6, "<unshaded>1</unshaded>")
-                self.writel(S_FX, 5, "</technique>")
-
-            self.writel(S_FX, 4, "</extra>")
-
-            self.writel(S_FX, 3, "</technique>")
-            self.writel(S_FX, 2, "</profile_COMMON>")
-            self.writel(S_FX, 1, "</effect>")
-
-            self.writel(S_MATS, 1, "<material id=\"{}\" name=\"{}\">".format(
-                matid, export_name))
-            self.writel(S_MATS, 2, "<instance_effect url=\"#{}\"/>".format(fxid))
-            self.writel(S_MATS, 1, "</material>")
+        matid = self.new_id("material")
+        self.writel(S_MATS, 1, "<material id=\"{}\" name=\"{}\">".format(
+            matid, material.name))
+        self.writel(S_MATS, 2, "<instance_effect url=\"#{}\"/>".format(fxid))
+        self.writel(S_MATS, 1, "</material>")
 
         self.material_cache[material] = matid
         return matid
@@ -1786,6 +1845,7 @@ class DaeExporter:
         self.writel(S_GEOM, 0, "<library_geometries>")
         self.writel(S_CONT, 0, "<library_controllers>")
         if self.can_export_type("MATERIAL"):
+            self.writel(S_IMGS, 0, "<library_images>")
             self.writel(S_MATS, 0, "<library_materials>")
             self.writel(S_FX, 0, "<library_effects>")
 
@@ -1808,6 +1868,7 @@ class DaeExporter:
         self.writel(S_CONT, 0, "</library_controllers>")
         
         if self.can_export_type("MATERIAL"):
+            self.writel(S_IMGS, 0, "</library_images>")
             self.writel(S_MATS, 0, "</library_materials>")
             self.writel(S_FX, 0, "</library_effects>")
 
