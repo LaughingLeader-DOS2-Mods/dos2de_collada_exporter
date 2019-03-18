@@ -20,7 +20,7 @@ An addon for Blender that allows you to export dae/gr2 files for the game Divini
 ### Cloning  
 * In Blender, navigate to File -> User Preferences -> File.
 * The pathway for "Scripts" is where Blender will read new addon folders from. Add a pathway if it's blank.
-* [Clone the repository](https://help.github.com/articles/cloning-a-repository/) either in your scripts folder, or somwhere else and copy the `io_scene_dos2de` folder to your scripts folder.
+* [Clone the repository](https://help.github.com/articles/cloning-a-repository/) either in your scripts folder, or somewhere else and copy the `io_scene_dos2de` folder to your scripts folder.
 
 ### Activating the Addon  
 * In Blender, navigate to File -> User Preferences -> Add-ons
