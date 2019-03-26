@@ -934,8 +934,8 @@ class DaeExporter:
             is_ctrl_bone = False
 
         if (is_ctrl_bone is False):
-            #boneid = self.new_id("bone")
-            boneid = self.new_id(bone.name)
+            boneid = self.new_id("bone")
+            #boneid = self.new_id(bone.name)
             boneidx = si["bone_count"]
             si["bone_count"] += 1
             bonesid = "{}-{}".format(si["id"], boneidx)
@@ -1517,8 +1517,8 @@ class DaeExporter:
 
     def export_animation_transform_channel(self, target, keys, matrices=True):
         frame_total = len(keys)
-        #anim_id = self.new_id("anim")
-        anim_id = self.new_id(target)
+        anim_id = self.new_id("anim")
+        #anim_id = self.new_id(target)
         self.writel(S_ANIM, 1, "<animation id=\"{}\">".format(anim_id))
         source_frames = ""
         source_transforms = ""

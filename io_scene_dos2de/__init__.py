@@ -470,12 +470,14 @@ class ExportDAE(Operator, ExportHelper):
         if self.filepath != "":
             if self.auto_name == "LAYER":
                 if "namedlayers" in bpy.data.scenes["Scene"]:
-                    for i in range(20):
-                        if (bpy.data.scenes["Scene"].layers[i]):
-                            self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, 
-                                                    bpy.data.scenes["Scene"].namedlayers.layers[i].name), 
-                                                self.filename_ext)
-                            self.update_path = True
+                    namedlayers = getattr(bpy.data.scenes["Scene"], "namedlayers", None)
+                    if namedlayers is not None:
+                        for i in range(20):
+                            if (bpy.data.scenes["Scene"].layers[i]):
+                                self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, 
+                                                        namedlayers.layers[i].name),
+                                                    self.filename_ext)
+                                self.update_path = True
                 else:
                     self.log_message = "The 3D Layer Manager addon must be enabled before you can use layer names when exporting."
             elif self.auto_name == "ACTION":
