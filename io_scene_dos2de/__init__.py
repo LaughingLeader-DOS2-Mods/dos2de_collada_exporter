@@ -27,6 +27,8 @@ from bpy.props import StringProperty, BoolProperty, FloatProperty, EnumProperty,
 
 from bpy_extras.io_utils import ExportHelper
 
+from bpy.app.handlers import persistent
+
 from math import radians, degrees
 from mathutils import Euler, Matrix
 
@@ -716,7 +718,7 @@ class ExportDAE(Operator, ExportHelper):
                 self.preset_applied_extra_flag = False
             return
         elif self.selected_preset == "MODEL":
-            self.object_types = {"ARMATURE", "MESH", "MATERIAL"}
+            #self.object_types = {"ARMATURE", "MESH", "MATERIAL"}
             self.object_types = {"ARMATURE", "MESH"}
 
             if self.yup_local_override is False:
@@ -951,6 +953,32 @@ class ExportDAE(Operator, ExportHelper):
         else:
             if addon_prefs.default_preset != "NONE":
                 self.selected_preset = addon_prefs.default_preset
+
+        #print("Preset: \"{}\"".format(self.selected_preset))
+
+        # Multiple meshes tend to need different materials for programs like Substance Painter
+        if self.selected_preset == "MODEL" and self.convert_gr2 == False:
+            num_meshes = 0
+
+            if self.use_active_layers:
+                for i in range(20):
+                    if context.scene.layers[i]:
+                        for obj in context.scene.objects:
+                            if obj.layers[i] and obj.type == "MESH":
+                                num_meshes += 1
+            elif self.use_export_selected:
+                for obj in context.scene.objects:
+                    if obj.select and obj.type == "MESH":
+                        num_meshes += 1
+            else:
+                for obj in context.scene.objects:
+                    if obj.type == "MESH":
+                        num_meshes += 1
+            
+            print("Total Meshes: \"{}\"".format(num_meshes))
+
+            if num_meshes > 1:
+                self.object_types = {"ARMATURE", "MESH", "MATERIAL"}
 
         yup_local_override = bpy.context.scene.get('dos2de_yup_local_override', None)
 
@@ -1429,6 +1457,27 @@ def menu_func(self, context):
 
 addon_keymaps = []
 
+def draw_export_options(self, context):
+    col = self.layout.column()
+    col.label("DOS2DE Collada Settings")
+    col.operator(DOS2DEExtraFlagsOperator.bl_idname)
+
+added_export_options = False
+
+@persistent
+def leaderhelpers_register_exportdraw(scene):
+    if hasattr(scene, "llexport_object_drawhandler"):
+        global added_export_options
+        if added_export_options is False:
+            try:
+                funclist = getattr(scene, "llexport_object_drawhandler", None)
+                if funclist is not None:
+                    funclist.add(draw_export_options)
+            except Exception as e:
+                print("[DivinityColladaExporter:leaderhelpers_register_exportdraw] Error adding draw function to list:\nError:\n{}".format(e))
+            bpy.app.handlers.scene_update_post.remove(leaderhelpers_register_exportdraw)
+            added_export_options = True
+
 def register():
     bpy.utils.register_module(__name__)
     #bpy.utils.register_class(ExportDAE)
@@ -1441,6 +1490,8 @@ def register():
     #print(__name__)
     #kmi.properties.name = ExportDAE.bl_idname
     addon_keymaps.append((km, kmi))
+    
+    bpy.app.handlers.scene_update_post.append(leaderhelpers_register_exportdraw)
 
 def unregister():
     bpy.utils.unregister_module(__name__)
@@ -1454,6 +1505,7 @@ def unregister():
         for km, kmi in addon_keymaps:
             km.keymap_items.remove(kmi)
     addon_keymaps.clear()
+    bpy.app.handlers.scene_update_post.remove(leaderhelpers_register_exportdraw)
 
 if __name__ == "__main__":
     register()
