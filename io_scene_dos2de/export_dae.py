@@ -168,12 +168,13 @@ class DaeExporter:
         self.sections = sections
 
     def mesh_has_property(self, obj, mesh, property):
-        if obj.get(property, None) is not None or mesh.get(property, None) is not None:
+        if mesh.get(property, None) is not None or mesh.get(property.capitalize(), None) is not None:
             print("Mesh has property: {}".format(property))
             return True
-        elif obj.get(property.capitalize(), None) is not None or mesh.get(property.capitalize(), None) is not None:
-            print("Mesh has property: {}".format(property))
+        elif obj.get(property, None) is not None or obj.get(property.capitalize(), None) is not None:
+            print("Object has property: {}".format(property))
             return True
+        return False
 
     def export_mesh(self, node, armature=None, skeyindex=-1, skel_source=None,
                     export_name=None):
@@ -691,27 +692,31 @@ class DaeExporter:
                 # Custom Property
                 if self.mesh_has_property(obj_check, mesh_check, "rigid"):
                     mesh_extra = "rigid"
-                elif self.mesh_has_property(obj_check, mesh_check, "cloth"):
+                if self.mesh_has_property(obj_check, mesh_check, "cloth"):
                     mesh_extra = "cloth"
-                elif self.mesh_has_property(obj_check, mesh_check, "meshproxy"):
+                if self.mesh_has_property(obj_check, mesh_check, "meshproxy"):
                     mesh_extra = "meshproxy"
-
+                if self.mesh_has_property(obj_check, mesh_check, "rigidcloth"):
+                    mesh_extra = "rigidcloth"
                 # Global
                 if self.config["convert_gr2"] == True:
                     extra_settings = self.config["divine_settings"].gr2_settings.extras
                     if extra_settings == "RIGID":
                         mesh_extra = "rigid"
-                    elif extra_settings == "CLOTH":
+                    if extra_settings == "CLOTH":
                         mesh_extra = "cloth"
-                    elif extra_settings == "MESHPROXY":
+                    if extra_settings == "MESHPROXY":
                         mesh_extra = "meshproxy"   
-
+                    if extra_settings == "RIGIDCLOTH":
+                        mesh_extra = "rigidcloth"
             if mesh_extra == "rigid":
                 self.writel(S_GEOM, 5, "<DivModelType>Rigid</DivModelType>")
             elif mesh_extra == "cloth":
                 self.writel(S_GEOM, 5, "<DivModelType>Cloth</DivModelType>")
             elif mesh_extra == "meshproxy":
                 self.writel(S_GEOM, 5, "<DivModelType>MeshProxy</DivModelType>")
+            elif mesh_extra == "rigidcloth":
+                self.writel(S_GEOM, 5, "<DivModelType>RigidCloth</DivModelType>")
             else:
                 self.writel(S_GEOM, 5, "<DivModelType>Normal</DivModelType>")
 

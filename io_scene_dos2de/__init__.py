@@ -54,7 +54,8 @@ gr2_extra_flags = (
     ("DISABLED", "Disabled", ""),
     ("MESHPROXY", "MeshProxy", "Flags the mesh as a meshproxy, used for displaying overlay effects on a weapon and AllSpark MeshEmiters"),
     ("CLOTH", "Cloth", "The mesh has vertex painting for use with Divinity's cloth system"),
-    ("RIGID", "Rigid", "For meshes lacking an armature modifier. Typically used for weapons")
+    ("RIGID", "Rigid", "For meshes lacking an armature modifier. Typically used for weapons"),
+    ("RIGIDCLOTH", "Rigid&Cloth", "For meshes lacking an armature modifier that also contain cloth physics. Typically used for weapons")
 )
 
 class ProjectData(PropertyGroup):
@@ -1105,6 +1106,8 @@ class ExportDAE(Operator, ExportHelper):
                 extra_flag = "cloth"
             elif "meshproxy" in top_object:
                 extra_flag = "meshproxy"
+            elif "rigidcloth" in top_object:
+                extra_flag = "rigidcloth"
 
             i = 1
             while i < count:
@@ -1123,6 +1126,8 @@ class ExportDAE(Operator, ExportHelper):
                         extra_flag = "cloth"
                     elif "meshproxy" in obj:
                         extra_flag = "meshproxy"
+                    elif "rigidcloth" in obj:
+                        extra_flag = "rigidcloth"
                 i+=1
 
             bpy.context.scene.objects.active = top_object
@@ -1135,6 +1140,8 @@ class ExportDAE(Operator, ExportHelper):
                     top_object["cloth"] = True
                 elif extra_flag == "meshproxy":
                     top_object["meshproxy"] = True
+                elif extra_flag == "rigidcloth":
+                    top_object["rigidcloth"] = True
 
                 print("[DOS2DE-Export] Merged selected objects for {}".format(top_object.name))
             else:
@@ -1416,18 +1423,32 @@ class DOS2DEExtraFlagsOperator(Operator):
                 del obj["cloth"]
             if "meshproxy" in obj:
                 del obj["meshproxy"]
+            if "rigidcloth" in obj:
+                del obj["rigidcloth"]
         elif self.flag == "CLOTH":
             obj["cloth"] = True
             if "rigid" in obj:
                 del obj["rigid"]
             if "meshproxy" in obj:
                 del obj["meshproxy"]
+            if "rigidcloth" in obj:
+                del obj["rigidcloth"]
         elif self.flag == "MESHPROXY":
             obj["meshproxy"] = True
             if "rigid" in obj:
                 del obj["rigid"]
             if "cloth" in obj:
                 del obj["cloth"]
+            if "rigidcloth" in obj:
+                del obj["rigidcloth"]
+        elif self.flag == "RIGIDCLOTH":
+            obj["rigidcloth"] = True
+            if "rigid" in obj:
+                del obj["rigid"]
+            if "cloth" in obj:
+                del obj["cloth"]
+            if "meshproxy" in obj:
+                del obj["meshproxy"]
         else:
             if "rigid" in obj:
                 del obj["rigid"]
@@ -1435,6 +1456,8 @@ class DOS2DEExtraFlagsOperator(Operator):
                 del obj["cloth"]
             if "meshproxy" in obj:
                 del obj["meshproxy"]
+            if "rigidcloth" in obj:
+                del obj["rigidcloth"]
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -1442,8 +1465,10 @@ class DOS2DEExtraFlagsOperator(Operator):
             self.flag = "RIGID"
         elif "cloth" in context.object:
             self.flag = "CLOTH"
-        if "meshproxy" in context.object:
+        elif "meshproxy" in context.object:
             self.flag = "MESHPROXY"
+        elif "rigidcloth" in context.object:
+            self.flag = "RIGIDCLOTH"
         
         wm = context.window_manager
         return wm.invoke_props_dialog(self)
@@ -1505,7 +1530,10 @@ def unregister():
         for km, kmi in addon_keymaps:
             km.keymap_items.remove(kmi)
     addon_keymaps.clear()
-    bpy.app.handlers.scene_update_post.remove(leaderhelpers_register_exportdraw)
+    try:
+        bpy.app.handlers.scene_update_post.remove(leaderhelpers_register_exportdraw)
+    except:
+        pass
 
 if __name__ == "__main__":
     register()
