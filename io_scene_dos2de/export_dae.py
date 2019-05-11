@@ -1507,7 +1507,7 @@ class DaeExporter:
         author = bpy.context.user_preferences.system.author or "Anonymous"
         self.writel(S_ASSET, 2, "<author>{}</author>".format(author))
         self.writel(
-            S_ASSET, 2, "<authoring_tool>{},{}</authoring_tool>".format(AUTHORING_TOOL_EXPORTER, AUTHORING_TOOL_AUTHOR))
+            S_ASSET, 2, "<authoring_tool>{} {}</authoring_tool>".format(AUTHORING_TOOL_EXPORTER, AUTHORING_TOOL_AUTHOR))
         self.writel(S_ASSET, 1, "</contributor>")
         self.writel(S_ASSET, 1, "<created>{}</created>".format(
             time.strftime("%Y-%m-%dT%H:%M:%SZ")))
