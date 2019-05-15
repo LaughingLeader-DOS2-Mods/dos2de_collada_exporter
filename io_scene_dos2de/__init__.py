@@ -80,6 +80,7 @@ class ExportProgressProperties(PropertyGroup):
     progress_current = IntProperty(name="Current Progress", options={"HIDDEN"}, update=update_progress_text)
 
 def start_progress(total, text=''):
+    return
     progress = bpy.context.scene.daefileprogress
     progress.progress_current = 0
     progress.progress_total = total
@@ -91,6 +92,7 @@ def start_progress(total, text=''):
         progress.progress_message = "Processing... {}/{}"
 
 def update_progress(inc, text=""):
+    return
     progress = bpy.context.scene.daefileprogress
     if progress.progress_finished == False:
         progress.progress_current += inc
@@ -101,6 +103,7 @@ def update_progress(inc, text=""):
         progress.progress_message = text
 
 def finish_progress(text=""):
+    return
     progress = bpy.context.scene.daefileprogress
     progress.progress_finished = True
     if text != "":
