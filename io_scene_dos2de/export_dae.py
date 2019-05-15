@@ -357,8 +357,7 @@ class DaeExporter:
         if armature is not None:
             si = self.skeleton_info[armature]
 
-        # TODO: Implement automatic tangent detection
-        has_tangents = self.config["use_tangent_arrays"]
+        has_tangents = self.config["use_tangent"]
 
         has_colors = len(mesh.vertex_colors)
         mat_assign = []
@@ -980,14 +979,7 @@ class DaeExporter:
             boneidx = si["bone_count"]
             si["bone_count"] += 1
             bonesid = "{}-{}".format(si["id"], boneidx)
-            if (bone.name in self.used_bones):
-                if (self.config["use_anim_action_all"]):
-                    self.operator.report(
-                        {"WARNING"}, "Bone name \"{}\" used in more than one "
-                        "skeleton. Actions might export wrong.".format(
-                            bone.name))
-            else:
-                self.used_bones.append(bone.name)
+            self.used_bones.append(bone.name)
 
             si["bone_index"][bone.name] = boneidx
             si["bone_ids"][bone] = boneid
@@ -1804,82 +1796,7 @@ class DaeExporter:
             tmp_mat.append([Matrix(s.matrix_local), tmp_bone_mat])
 
         self.writel(S_ANIM, 0, "<library_animations>")
-
-        if (self.config["use_anim_action_all"] and len(self.skeletons)):
-
-            cached_actions = {}
-
-            for s in self.skeletons:
-                if s.animation_data and s.animation_data.action:
-                    cached_actions[s] = s.animation_data.action.name
-
-            self.writel(S_ANIM_CLIPS, 0, "<library_animation_clips>")
-
-            for x in bpy.data.actions[:]:
-                if x.users == 0 or x in self.action_constraints:
-                    continue
-                if (self.config["use_anim_skip_noexp"] and
-                        x.name.endswith("-noexp")):
-                    continue
-
-                bones = []
-                # Find bones used
-                for p in x.fcurves:
-                    dp = p.data_path
-                    base = "pose.bones[\""
-                    if dp.startswith(base):
-                        dp = dp[len(base):]
-                        if (dp.find("\"") != -1):
-                            dp = dp[:dp.find("\"")]
-                            if (dp not in bones):
-                                bones.append(dp)
-
-                allowed_skeletons = []
-                for i, y in enumerate(self.skeletons):
-                    if (y.animation_data):
-                        for z in y.pose.bones:
-                            if (z.bone.name in bones):
-                                if (y not in allowed_skeletons):
-                                    allowed_skeletons.append(y)
-                        y.animation_data.action = x
-
-                        y.matrix_local = tmp_mat[i][0]
-                        for j, bone in enumerate(s.pose.bones):
-                            bone.matrix_basis = Matrix()
-
-                tcn = self.export_animation(int(x.frame_range[0]), int(
-                    x.frame_range[1] + 0.5), allowed_skeletons)
-                framelen = (1.0 / self.scene.render.fps)
-                start = x.frame_range[0] * framelen
-                end = x.frame_range[1] * framelen
-                self.writel(
-                    S_ANIM_CLIPS, 1, "<animation_clip name=\"{}\" "
-                    "start=\"{}\" end=\"{}\">".format(x.name, start, end))
-                for z in tcn:
-                    self.writel(S_ANIM_CLIPS, 2,
-                                "<instance_animation url=\"#{}\"/>".format(z))
-                self.writel(S_ANIM_CLIPS, 1, "</animation_clip>")
-                if (len(tcn) == 0):
-                    self.operator.report(
-                        {"WARNING"}, "Animation clip \"{}\" contains no "
-                        "tracks.".format(x.name))
-
-            self.writel(S_ANIM_CLIPS, 0, "</library_animation_clips>")
-
-            for i, s in enumerate(self.skeletons):
-                if (s.animation_data is None):
-                    continue
-                if s in cached_actions:
-                    s.animation_data.action = bpy.data.actions[
-                        cached_actions[s]]
-                else:
-                    s.animation_data.action = None
-                    for j, bone in enumerate(s.pose.bones):
-                        bone.matrix_basis = tmp_mat[i][1][j]
-
-        else:
-            self.export_animation(self.scene.frame_start, self.scene.frame_end)
-
+        self.export_animation(self.scene.frame_start, self.scene.frame_end)
         self.writel(S_ANIM, 0, "</library_animations>")
 
     def export(self):

@@ -60,6 +60,58 @@ gr2_extra_flags = (
     ("RIGIDCLOTH", "Rigid&Cloth", "For meshes lacking an armature modifier that also contain cloth physics. Typically used for weapons")
 )
 
+class ExportProgressProperties(PropertyGroup):
+    progress_total = IntProperty(name="Progress Total", options={"HIDDEN"})
+    progress_message = StringProperty(name="Progress Message", options={"HIDDEN"}, default="{}{}")
+    progress_finished = BoolProperty(options={"HIDDEN"})
+    progress_display_text = StringProperty(name="Progress Message", options={"HIDDEN"}, default="")
+
+    def update_progress_text(self, context):
+        if self.progress_total > 0:
+            if self.progress_finished == False:
+                self.progress_display_text = self.progress_message.format(self.progress_current, self.progress_total)
+            else:
+                self.progress_display_text = self.progress_message
+        else:
+            self.progress_display_text = ""
+        
+        print("Updated progress? {}".format(self.progress_display_text))
+        for area in bpy.data.screens["Animation-nonnormal"].areas:
+            area.tag_redraw()
+        context.scene.update()
+
+    progress_current = IntProperty(name="Current Progress", options={"HIDDEN"}, update=update_progress_text)
+
+def start_progress(total, text=''):
+    progress = bpy.context.scene.daefileprogress
+    progress.progress_current = 0
+    progress.progress_total = total
+    progress.progress_finished = False
+
+    if text != "":
+        progress.progress_message = text
+    else:
+        progress.progress_message = "Processing... {}/{}"
+
+def update_progress(inc, text=""):
+    progress = bpy.context.scene.daefileprogress
+    if progress.progress_finished == False:
+        progress.progress_current += inc
+        if progress.progress_current > progress.progress_total:
+            progress.progress_finished = True
+
+    if text != "":
+        progress.progress_message = text
+
+def finish_progress(text=""):
+    progress = bpy.context.scene.daefileprogress
+    progress.progress_finished = True
+    if text != "":
+        progress.progress_message = text
+
+def draw_file_progress(self, context):
+    self.layout.prop(bpy.context.scene.daefileprogress, "progress_display_text", emboss=False, text="", expand=True)
+
 class ProjectData(PropertyGroup):
     project_folder = StringProperty(
         name="Project Folder",
@@ -481,11 +533,11 @@ class ExportDAE(Operator, ExportHelper):
 
         if self.filepath != "":
             if self.auto_name == "LAYER":
-                if "namedlayers" in bpy.data.scenes["Scene"]:
-                    namedlayers = getattr(bpy.data.scenes["Scene"], "namedlayers", None)
+                if "namedlayers" in bpy.data.scenes[context.scene.name]:
+                    namedlayers = getattr(bpy.data.scenes[context.scene.name], "namedlayers", None)
                     if namedlayers is not None:
                         for i in range(20):
-                            if (bpy.data.scenes["Scene"].layers[i]):
+                            if (bpy.data.scenes[context.scene.name].layers[i]):
                                 self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, 
                                                         namedlayers.layers[i].name),
                                                     self.filename_ext)
@@ -625,10 +677,9 @@ class ExportDAE(Operator, ExportHelper):
         description="Normalize all vertex groups",
         default=True
         )
-    use_tangent_arrays = BoolProperty(
-        name="Tangent Arrays",
-        description="Export Tangent and Binormal arrays "
-                    "(for normalmapping).",
+    use_tangent = BoolProperty(
+        name="Export Tangents",
+        description="Export Tangent and Binormal arrays (for normalmapping).",
         default=True
         )
     use_triangles = BoolProperty(
@@ -661,12 +712,6 @@ class ExportDAE(Operator, ExportHelper):
     anim_export_all_separate = BoolProperty(
         name="Export All Actions",
         description="Export all actions as separate animation files",
-        default=False
-        )
-    use_anim_action_all = BoolProperty(
-        name="Export All Actions",
-        description=("Export all actions for the first armature found "
-                     "in separate DAE files"),
         default=False
         )
     use_anim_skip_noexp = BoolProperty(
@@ -739,7 +784,7 @@ class ExportDAE(Operator, ExportHelper):
             if self.yup_local_override is False:
                 self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = True
-            self.use_tangent_arrays = True
+            self.use_tangent = True
             self.use_triangles = True
             self.use_active_layers = True
             self.auto_name = "LAYER"
@@ -749,7 +794,6 @@ class ExportDAE(Operator, ExportHelper):
             self.use_copy_images = False
             self.use_exclude_ctrl_bones = False
             self.use_anim = False
-            self.use_anim_action_all = False
             self.use_anim_skip_noexp = False
             self.use_anim_optimize = False
             self.use_shape_key_export = False
@@ -768,7 +812,7 @@ class ExportDAE(Operator, ExportHelper):
             if self.yup_local_override is False:
                 self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = False
-            self.use_tangent_arrays = False
+            self.use_tangent = False
             self.use_triangles = False
             self.use_active_layers = True
             self.auto_name = "ACTION"
@@ -778,7 +822,6 @@ class ExportDAE(Operator, ExportHelper):
             self.use_copy_images = False
             self.use_exclude_ctrl_bones = True
             self.use_anim = True
-            self.use_anim_action_all = False
             self.use_anim_skip_noexp = True
             self.use_anim_optimize = False
             self.use_shape_key_export = False
@@ -795,7 +838,7 @@ class ExportDAE(Operator, ExportHelper):
             if self.yup_local_override is False:
                 self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = True
-            self.use_tangent_arrays = True
+            self.use_tangent = True
             self.use_triangles = True
             self.use_active_layers = True
             self.auto_name = "LAYER"
@@ -805,7 +848,6 @@ class ExportDAE(Operator, ExportHelper):
             self.use_copy_images = False
             self.use_exclude_ctrl_bones = False
             self.use_anim = False
-            self.use_anim_action_all = False
             self.use_anim_skip_noexp = False
             self.use_anim_optimize = False
             self.use_shape_key_export = False
@@ -833,6 +875,11 @@ class ExportDAE(Operator, ExportHelper):
         update=apply_preset
         )
 
+    batch_mode = BoolProperty(
+        name="Batch Export",
+        description="Export all active layers as separate files, or every action as separate animation files",
+        default=False)
+
     debug_mode = BoolProperty(default=False, options={"HIDDEN"})
 
     def draw(self, context):
@@ -845,6 +892,7 @@ class ExportDAE(Operator, ExportHelper):
         col = layout.column(align=True)
         col.prop(self, "auto_determine_path")
         col.prop(self, "selected_preset")
+        col.prop(self, "batch_mode")
 
         box = layout.box()
         box.prop(self, "auto_name")
@@ -858,7 +906,7 @@ class ExportDAE(Operator, ExportHelper):
 
         col = layout.column(align=True)
         row = col.row(align=True)
-        row.prop(self, "use_tangent_arrays")
+        row.prop(self, "use_tangent")
         row.prop(self, "use_triangles")
         col.prop(self, "use_normalize_vert_groups")
 
@@ -879,7 +927,6 @@ class ExportDAE(Operator, ExportHelper):
             box.label("Animation Settings")
             if self.debug_mode:
                 box.prop(self, "anim_export_all_separate")
-            #box.prop(self, "use_anim_action_all")
             box.prop(self, "use_anim_skip_noexp")
             box.prop(self, "use_anim_optimize")
             box.prop(self, "anim_optimize_precision")
@@ -1014,6 +1061,8 @@ class ExportDAE(Operator, ExportHelper):
                             self.last_filepath = self.filepath
                             print("Setting start path to export folder: \"{}\"".format(export_folder))
                             break
+
+        #bpy.types.FILEBROWSER_HT_header.append(draw_file_progress)
 
         self.update_filepath(context)
         context.window_manager.fileselect_add(self)
@@ -1195,6 +1244,10 @@ class ExportDAE(Operator, ExportHelper):
 
         return copy
 
+    def cancel(self, context):
+        #bpy.types.FILEBROWSER_HT_header.remove(draw_file_progress)
+        pass
+
     def execute(self, context):
         if not self.filepath:
             raise Exception("filepath not set")
@@ -1323,25 +1376,73 @@ class ExportDAE(Operator, ExportHelper):
                                             "check_existing",
                                             "filter_glob",
                                             "xna_validate",
+                                            "filepath"
                                             ))
 
-        if self.use_anim and self.anim_export_all_separate:
-            print("[DOS2DE-Exporter] Exporting all actions as separate animation files.")
-            
-            armobj = next(iter(list(filter(lambda obj: obj.type == "ARMATURE", modifyObjects))), None)
-            if armobj is not None:
-                armature = armobj.data
-                for action in bpy.data.actions:
-                    self.filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, action.name), self.filename_ext)
-                    print("[DOS2DE-Exporter] Setting action to '{}' and exporting as '{}'.".format(action.name, self.filepath))
-                    if armature.animation_data is None:
-                        armature.animation_data_create()
-                    armature.animation_data.action = action
-                    export_list = [armobj]
-                    export_dae.save(self, context, export_list, **keywords)
-            result = {"FINISHED"}
-        else:
-            result = export_dae.save(self, context, modifyObjects, **keywords)
+        exported_pathways = []
+
+        single_mode = self.batch_mode == False
+
+        if self.batch_mode:
+            if self.use_anim:
+                if self.anim_export_all_separate:
+                    print("[DOS2DE-Exporter] Exporting all actions as separate animation files.")
+                    
+                    armature = next(iter(list(filter(lambda obj: obj.type == "ARMATURE", modifyObjects))), None)
+                    if armature is not None:
+                        start_progress(len(bpy.data.actions), "Exporting animations to DAE... {}/{}")
+
+                        for action in bpy.data.actions:
+                            export_name = "{}_Anim_{}".format(armature.name, action.name)
+                            if self.auto_name == "ACTION":
+                                export_name = action.name
+                            
+                            export_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, export_name), self.filename_ext)
+                            print("[DOS2DE-Exporter] Setting action to '{}' and exporting as '{}'.".format(action.name, export_filepath))
+                            if armature.animation_data is None:
+                                armature.animation_data_create()
+                            armature.animation_data.action = action
+                            if export_dae.save(self, context, [armature], filepath=export_filepath, **keywords) == {"FINISHED"}:
+                                exported_pathways.append(export_filepath)
+                            else:
+                                self.report({"WARNING"}, "[DOS2DE-Exporter] Failed to export '{}'.".format(export_filepath))
+
+                            update_progress(1)
+                    result = {"FINISHED"}
+                    finish_progress("All files exported.")
+                else:
+                    single_mode = True
+            else:
+                if self.use_active_layers:
+                    progress_total = len((i for i in range(20) if context.scene.layers[i]))
+                    start_progress(progress_total, "Exporting layers to DAE... {}/{}")
+                    for i in range(20):
+                        if context.scene.layers[i]:
+                            export_list = list(filter(lambda obj: obj.layers[i], modifyObjects))
+                            export_name = "{}_Layer{}".format(bpy.path.basename(bpy.context.blend_data.filepath), i)
+
+                            if self.auto_name == "LAYER" and "namedlayers" in bpy.data.scenes[context.scene.name]:
+                                namedlayers = getattr(bpy.data.scenes[context.scene.name], "namedlayers", None)
+                                if namedlayers is not None:
+                                    export_name = namedlayers.layers[i].name
+                            
+                            export_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, export_name), self.filename_ext)
+                            print("[DOS2DE-Exporter] Batch exporting layer '{}' as '{}'.".format(i, export_filepath))
+
+                            if export_dae.save(self, context, export_list, filepath=export_filepath, **keywords) == {"FINISHED"}:
+                                exported_pathways.append(export_filepath)
+                            else:
+                                self.report({"WARNING"}, "[DOS2DE-Exporter] Failed to export '{}'.".format(export_filepath))
+
+                            update_progress(1)
+                    
+                    finish_progress("All files exported.")
+                else:
+                    single_mode = True
+        if single_mode:
+            result = export_dae.save(self, context, modifyObjects, filepath=self.filepath, **keywords)
+            if result == {"FINISHED"}:
+                exported_pathways.append(self.filepath)
 
         bpy.ops.object.select_all(action='DESELECT')
 
@@ -1390,36 +1491,45 @@ class ExportDAE(Operator, ExportHelper):
         if self.convert_gr2:
             if (addon_prefs.lslib_path is not None and addon_prefs.lslib_path != "" 
                 and os.path.isfile(addon_prefs.lslib_path)):
-                    gr2_path = str.replace(self.filepath, ".dae", ".gr2")
+                    start_progress(len(exported_pathways), "Exporting files to GR2... {}/{}")
 
-                    gr2_options_str = self.build_gr2_options()
+                    for collada_file in exported_pathways:
+                        gr2_path = str.replace(collada_file, ".dae", ".gr2")
 
-                    divine_exe = '"{}"'.format(addon_prefs.lslib_path)
+                        gr2_options_str = self.build_gr2_options()
 
-                    proccess_args = "{} --loglevel all -g {} -s {} -d {} -i dae -o gr2 -a convert-model {}".format(
-                        divine_exe, self.divine_settings.game, '"{}"'.format(self.filepath), '"{}"'.format(gr2_path), gr2_options_str
-                    )
+                        divine_exe = '"{}"'.format(addon_prefs.lslib_path)
+
+                        proccess_args = "{} --loglevel all -g {} -s {} -d {} -i dae -o gr2 -a convert-model {}".format(
+                            divine_exe, self.divine_settings.game, '"{}"'.format(collada_file), '"{}"'.format(gr2_path), gr2_options_str
+                        )
+                        
+                        print("Starting GR2 conversion using divine.exe.")
+                        print("Sending command: {}".format(proccess_args))
+
+                        process = subprocess.run(proccess_args, 
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+
+                        print(process.stdout)
+                        
+                        if process.returncode != 0:
+                            #raise Exception("Error converting DAE to GR2: \"{}\"{}".format(process.stderr, process.stdout))
+                            error_message = "[DOS2DE-Collada] [ERROR:{}] Error converting DAE to GR2. {}".format(process.returncode, '\n'.join(process.stdout.splitlines()[-1:]))
+                            self.report({"ERROR"}, error_message)
+                            print(error_message)
+                        else:
+                            if self.divine_settings.delete_collada:
+                                print("[DOS2DE-Collada] GR2 conversion successful. Deleting temporary collada file '{}'.".format(collada_file))
+                                os.remove(collada_file)
+
+                        update_progress(1)
                     
-                    print("Starting GR2 conversion using divine.exe.")
-                    print("Sending command: {}".format(proccess_args))
-
-                    process = subprocess.run(proccess_args, 
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-
-                    print(process.stdout)
-                    
-                    if process.returncode != 0:
-                        #raise Exception("Error converting DAE to GR2: \"{}\"{}".format(process.stderr, process.stdout))
-                        error_message = "[DOS2DE-Collada] [ERROR:{}] Error converting DAE to GR2. {}".format(process.returncode, '\n'.join(process.stdout.splitlines()[-1:]))
-                        self.report({"ERROR"}, error_message)
-                        print(error_message)
-                    else:
-                        #Deleta .dae
-                        if self.divine_settings.delete_collada:
-                            os.remove(self.filepath)
+                    finish_progress("All files exported.")
             else:
                 raise Exception("[DOS2DE-Collada] LSLib not found. Cannot convert to GR2.")
-           
+        
+        #bpy.types.FILEBROWSER_HT_header.remove(draw_file_progress)
+
         return result
 
 class DOS2DEExtraFlagsOperator(Operator):
@@ -1527,6 +1637,12 @@ def register():
     #bpy.utils.register_class(ExportDAE)
     bpy.types.INFO_MT_file_export.append(menu_func)
 
+    bpy.types.Scene.daefileprogress = PointerProperty(
+        name="File Export Progress",
+        description="Used to render file browser progress",
+        type=ExportProgressProperties
+    )
+
     wm = bpy.context.window_manager
     km = wm.keyconfigs.addon.keymaps.new('Window', space_type='EMPTY', region_type='WINDOW', modal=False)
 
@@ -1541,16 +1657,18 @@ def unregister():
     bpy.utils.unregister_module(__name__)
     #bpy.utils.unregister_class(ExportDAE)
 
-    bpy.types.INFO_MT_file_export.remove(menu_func)
-
-    wm = bpy.context.window_manager
-    kc = wm.keyconfigs.addon
-    if kc:
-        for km, kmi in addon_keymaps:
-            km.keymap_items.remove(kmi)
-    addon_keymaps.clear()
     try:
+        bpy.types.INFO_MT_file_export.remove(menu_func)
         bpy.app.handlers.scene_update_post.remove(leaderhelpers_register_exportdraw)
+        #bpy.types.FILEBROWSER_HT_header.remove(draw_file_progress)
+        del bpy.types.Scene.daefileprogress
+
+        wm = bpy.context.window_manager
+        kc = wm.keyconfigs.addon
+        if kc:
+            for km, kmi in addon_keymaps:
+                km.keymap_items.remove(kmi)
+        addon_keymaps.clear()
     except:
         pass
 
