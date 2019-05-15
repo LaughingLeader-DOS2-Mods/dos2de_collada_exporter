@@ -32,6 +32,8 @@ from bpy.app.handlers import persistent
 from math import radians, degrees
 from mathutils import Euler, Matrix
 
+from . import export_dae
+
 bl_info = {
     "name": "Divinity Collada Exporter",
     "author": "LaughingLeader",
@@ -265,6 +267,11 @@ class Divine_ExportSettings(PropertyGroup):
         name="Filter UVs",
         default=False
     )
+    ignore_uv_nan = BoolProperty(
+        name="Ignore Bad NaN UVs",
+        description="Ignore bad/unwrapped UVs that fail to form a triangle. Export will fail if these are detected",
+        default=False
+    )
     export_normals = BoolProperty(
         name="Export Normals",
         default=True
@@ -309,6 +316,7 @@ class Divine_ExportSettings(PropertyGroup):
             "xflip_meshes",
             "flip_uvs",
             "filter_uvs",
+            "ignore_uv_nan",
             "export_normals",
             "export_tangents",
             "export_uvs",
@@ -415,7 +423,8 @@ class ExportDAE(Operator, ExportHelper):
             "recalculate_normals"       : "recalculate-normals",
             "recalculate_tangents"      : "recalculate-tangents",
             "recalculate_iwt"           : "recalculate-iwt",
-            "flip_uvs"                  : "flip-uvs"
+            "flip_uvs"                  : "flip-uvs",
+            "ignore_uv_nan"             : "ignore-uv-nan"
         }
 
         gr2_args = {
@@ -649,6 +658,11 @@ class ExportDAE(Operator, ExportHelper):
         description="Export keyframe animation",
         default=False
         )
+    anim_export_all_separate = BoolProperty(
+        name="Export All Actions",
+        description="Export all actions as separate animation files",
+        default=False
+        )
     use_anim_action_all = BoolProperty(
         name="Export All Actions",
         description=("Export all actions for the first armature found "
@@ -818,19 +832,6 @@ class ExportDAE(Operator, ExportHelper):
         default=("NONE"),
         update=apply_preset
         )
-        
-    #def __init__(self):
-    #    props = dir(self)
-
-    #    for prop in props:
-    #        if not prop.startswith('__'):
-    #            val = getattr(self, prop)
-    #            if not callable(val):
-    #                if val.options != "HIDDEN":
-    #                    proptype = type(getattr(self, prop))
-    #                    print(proptype)
-    #                    if prop is bpy.types.Property:
-    #                        list.append(self.drawable_props, prop)
 
     def draw(self, context):
         layout = self.layout
@@ -874,7 +875,8 @@ class ExportDAE(Operator, ExportHelper):
         box.prop(self, "use_anim")
         if self.use_anim:
             box.label("Animation Settings")
-            box.prop(self, "use_anim_action_all")
+            box.prop(self, "anim_export_all_separate")
+            #box.prop(self, "use_anim_action_all")
             box.prop(self, "use_anim_skip_noexp")
             box.prop(self, "use_anim_optimize")
             box.prop(self, "anim_optimize_precision")
@@ -1317,12 +1319,23 @@ class ExportDAE(Operator, ExportHelper):
                                             "xna_validate",
                                             ))
 
-        for obj in modifyObjects:
-            print("Exporting {}".format(obj.name))
-            print("  Rotation {}".format(str(obj.rotation_euler)))
-
-        from . import export_dae
-        result = export_dae.save(self, context, modifyObjects, **keywords)
+        if self.use_anim and self.anim_export_all_separate:
+            print("[DOS2DE-Exporter] Exporting all actions as separate animation files.")
+            
+            armobj = next(iter(list(filter(lambda obj: obj.type == "ARMATURE", modifyObjects))), None)
+            if armobj is not None:
+                armature = armobj.data
+                for action in bpy.data.actions:
+                    self.filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, action.name), self.filename_ext)
+                    print("[DOS2DE-Exporter] Setting action to '{}' and exporting as '{}'.".format(action.name, self.filepath))
+                    if armature.animation_data is None:
+                        armature.animation_data_create()
+                    armature.animation_data.action = action
+                    export_list = [armobj]
+                    export_dae.save(self, context, export_list, **keywords)
+            result = {"FINISHED"}
+        else:
+            result = export_dae.save(self, context, modifyObjects, **keywords)
 
         bpy.ops.object.select_all(action='DESELECT')
 
