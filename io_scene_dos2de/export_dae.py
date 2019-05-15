@@ -517,6 +517,7 @@ class DaeExporter:
         self.writel(S_GEOM, 3, "</source>")
 
         if (has_tangents):
+            # Tangents
             self.writel(
                 S_GEOM, 3, "<source id=\"{}-tangents\">".format(meshid))
             float_values = ""
@@ -538,6 +539,33 @@ class DaeExporter:
             self.writel(S_GEOM, 4, "</technique_common>")
             self.writel(S_GEOM, 3, "</source>")
 
+            # Binormals
+            self.writel(
+                S_GEOM, 3, "<source id=\"{}-binormals\">".format(meshid))
+            float_values = ""
+            for v in vertices:
+                tangent = v.tangent
+                normal = v.normal
+                binormal = normal.cross(tangent)
+                binormal.normalize()
+                float_values += " {} {} {}".format(
+                    binormal.x, binormal.y, binormal.z)
+            self.writel(
+                S_GEOM, 4, "<float_array id=\"{}-binormals-array\" "
+                "count=\"{}\">{}</float_array>".format(
+                    meshid, len(vertices) * 3, float_values))
+            self.writel(S_GEOM, 4, "<technique_common>")
+            self.writel(
+                S_GEOM, 4, "<accessor source=\"#{}-binormals-array\" "
+                "count=\"{}\" stride=\"3\">".format(meshid, len(vertices)))
+            self.writel(S_GEOM, 5, "<param name=\"X\" type=\"float\"/>")
+            self.writel(S_GEOM, 5, "<param name=\"Y\" type=\"float\"/>")
+            self.writel(S_GEOM, 5, "<param name=\"Z\" type=\"float\"/>")
+            self.writel(S_GEOM, 4, "</accessor>")
+            self.writel(S_GEOM, 4, "</technique_common>")
+            self.writel(S_GEOM, 3, "</source>")
+
+            #Bitangents
             self.writel(S_GEOM, 3, "<source id=\"{}-bitangents\">".format(
                 meshid))
             float_values = ""
@@ -560,9 +588,10 @@ class DaeExporter:
             self.writel(S_GEOM, 3, "</source>")
 
         # UV Arrays
-        for uvi in range(uv_layer_count):
-            self.writel(S_GEOM, 3, "<source id=\"{}-texcoord-{}\">".format(
-                meshid, uvi))
+        if uv_layer_count > 0:
+            uvi = 0
+            self.writel(S_GEOM, 3, "<source id=\"{}-uvs0\">".format(
+                meshid))
             float_values = ""
             for v in vertices:
                 try:
@@ -572,14 +601,14 @@ class DaeExporter:
                     float_values += " 0 0 "
 
             self.writel(
-                S_GEOM, 4, "<float_array id=\"{}-texcoord-{}-array\" "
+                S_GEOM, 4, "<float_array id=\"{}-uvs0-array\" "
                 "count=\"{}\">{}</float_array>".format(
-                    meshid, uvi, len(vertices) * 2, float_values))
+                    meshid, len(vertices) * 2, float_values))
             self.writel(S_GEOM, 4, "<technique_common>")
             self.writel(
-                S_GEOM, 4, "<accessor source=\"#{}-texcoord-{}-array\" "
+                S_GEOM, 4, "<accessor source=\"#{}-uvs0-array\" "
                 "count=\"{}\" stride=\"2\">".format(
-                    meshid, uvi, len(vertices)))
+                    meshid, len(vertices)))
             self.writel(S_GEOM, 5, "<param name=\"S\" type=\"float\"/>")
             self.writel(S_GEOM, 5, "<param name=\"T\" type=\"float\"/>")
             self.writel(S_GEOM, 4, "</accessor>")
@@ -643,11 +672,12 @@ class DaeExporter:
                 S_GEOM, 4, "<input semantic=\"NORMAL\" "
                 "source=\"#{}-normals\" offset=\"0\"/>".format(meshid))
 
-            for uvi in range(uv_layer_count):
+            if uv_layer_count > 0:
+                uvi = 0
                 self.writel(
                     S_GEOM, 4,
-                    "<input semantic=\"TEXCOORD\" source=\"#{}-texcoord-{}\" "
-                    "offset=\"0\" set=\"{}\"/>".format(meshid, uvi, uvi))
+                    "<input semantic=\"TEXCOORD\" source=\"#{}-uvs0\" "
+                    "offset=\"0\" set=\"{}\"/>".format(meshid, uvi))
 
             if (has_colors):
                 self.writel(
@@ -655,11 +685,17 @@ class DaeExporter:
                     "source=\"#{}-colors\" offset=\"0\"/>".format(meshid))
             if (has_tangents):
                 self.writel(
-                    S_GEOM, 4, "<input semantic=\"TEXTANGENT\" "
+                    S_GEOM, 4, "<input semantic=\"TANGENT\" "
                     "source=\"#{}-tangents\" offset=\"0\"/>".format(meshid))
                 self.writel(
+                    S_GEOM, 4, "<input semantic=\"BINORMAL\" "
+                    "source=\"#{}-binormals\" offset=\"0\"/>".format(meshid))
+                """ self.writel(
+                    S_GEOM, 4, "<input semantic=\"TEXTANGENT\" "
+                    "source=\"#{}-tangents\" offset=\"0\"/>".format(meshid)) """
+                """ self.writel(
                     S_GEOM, 4, "<input semantic=\"TEXBINORMAL\" "
-                    "source=\"#{}-bitangents\" offset=\"0\"/>".format(meshid))
+                    "source=\"#{}-bitangents\" offset=\"0\"/>".format(meshid)) """
 
             if (triangulate):
                 int_values = "<p>"
