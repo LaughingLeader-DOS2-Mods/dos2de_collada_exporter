@@ -962,7 +962,7 @@ class ExportDAE(Operator, ExportHelper):
 
         helper_preferences = context.user_preferences.addons["laughingleader_blender_helpers"].preferences
         if helper_preferences is not None:
-            debug_mode = getattr(helper_preferences, "debug_mode", False)
+            self.debug_mode = getattr(helper_preferences, "debug_mode", False)
         #print("Preset: \"{}\"".format(self.selected_preset))
 
         # Multiple meshes tend to need different materials for programs like Substance Painter
