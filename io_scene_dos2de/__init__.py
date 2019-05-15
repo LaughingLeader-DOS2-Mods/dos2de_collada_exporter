@@ -81,7 +81,7 @@ class AddProjectOperator(Operator):
 
     def execute(self, context):
         user_preferences = context.user_preferences
-        addon_prefs = user_preferences.addons[__name__].preferences
+        addon_prefs = user_preferences.addons["io_scene_dos2de"].preferences
         project = addon_prefs.projects.project_data.add()
         return {'FINISHED'}
 
@@ -97,7 +97,7 @@ class RemoveProjectOperator(Operator):
 
     def execute(self, context):
         user_preferences = context.user_preferences
-        addon_prefs = user_preferences.addons[__name__].preferences
+        addon_prefs = user_preferences.addons["io_scene_dos2de"].preferences
 
         i = 0
         for project in addon_prefs.projects.project_data:
@@ -126,7 +126,7 @@ class DivinityProjectList(UIList):
             layout.label(text="", icon_value=icon)
 
 class ExportColladaAddonPreferences(AddonPreferences):
-    bl_idname = __name__
+    bl_idname = "io_scene_dos2de"
 
     lslib_path = StringProperty(
         name="Divine Path",
@@ -462,7 +462,7 @@ class ExportDAE(Operator, ExportHelper):
             self.last_filepath = self.filepath
 
         user_preferences = context.user_preferences
-        addon_prefs = user_preferences.addons[__name__].preferences
+        addon_prefs = user_preferences.addons["io_scene_dos2de"].preferences
         
         if self.auto_determine_path == True and addon_prefs.auto_export_subfolder == True and self.export_directory != "":
             auto_directory = self.export_directory
@@ -833,6 +833,8 @@ class ExportDAE(Operator, ExportHelper):
         update=apply_preset
         )
 
+    debug_mode = BoolProperty(default=False, options={"HIDDEN"})
+
     def draw(self, context):
         layout = self.layout
         
@@ -875,7 +877,8 @@ class ExportDAE(Operator, ExportHelper):
         box.prop(self, "use_anim")
         if self.use_anim:
             box.label("Animation Settings")
-            box.prop(self, "anim_export_all_separate")
+            if self.debug_mode:
+                box.prop(self, "anim_export_all_separate")
             #box.prop(self, "use_anim_action_all")
             box.prop(self, "use_anim_skip_noexp")
             box.prop(self, "use_anim_optimize")
@@ -914,7 +917,7 @@ class ExportDAE(Operator, ExportHelper):
             self.log_message = ""
 
         user_preferences = context.user_preferences
-        addon_prefs = user_preferences.addons[__name__].preferences
+        addon_prefs = user_preferences.addons["io_scene_dos2de"].preferences
 
         if self.convert_gr2 == False:
             self.gr2_default_enabled_ignore = True
@@ -944,7 +947,7 @@ class ExportDAE(Operator, ExportHelper):
         
     def invoke(self, context, event):
         user_preferences = context.user_preferences
-        addon_prefs = user_preferences.addons[__name__].preferences
+        addon_prefs = user_preferences.addons["io_scene_dos2de"].preferences
 
         if addon_prefs.gr2_default_enabled == True and self.gr2_default_enabled_ignore == False:
             self.convert_gr2 = True
@@ -957,6 +960,9 @@ class ExportDAE(Operator, ExportHelper):
             if addon_prefs.default_preset != "NONE":
                 self.selected_preset = addon_prefs.default_preset
 
+        helper_preferences = context.user_preferences.addons["laughingleader_blender_helpers"].preferences
+        if helper_preferences is not None:
+            debug_mode = getattr(helper_preferences, "debug_mode", False)
         #print("Preset: \"{}\"".format(self.selected_preset))
 
         # Multiple meshes tend to need different materials for programs like Substance Painter
@@ -1194,7 +1200,7 @@ class ExportDAE(Operator, ExportHelper):
             raise Exception("filepath not set")
         
         user_preferences = context.user_preferences
-        addon_prefs = user_preferences.addons[__name__].preferences
+        addon_prefs = user_preferences.addons["io_scene_dos2de"].preferences
 
         if bpy.context.object is not None and bpy.context.object.mode is not None:
             current_mode = bpy.context.object.mode
