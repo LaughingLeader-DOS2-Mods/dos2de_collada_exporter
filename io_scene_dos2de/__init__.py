@@ -75,10 +75,7 @@ class ExportProgressProperties(PropertyGroup):
         else:
             self.progress_display_text = ""
         
-        print("Updated progress? {}".format(self.progress_display_text))
-        for area in bpy.data.screens["Animation-nonnormal"].areas:
-            area.tag_redraw()
-        context.scene.update()
+        #print("Updated progress? {}".format(self.progress_display_text))
 
     progress_current = IntProperty(name="Current Progress", options={"HIDDEN"}, update=update_progress_text)
 
@@ -1637,11 +1634,11 @@ def register():
     #bpy.utils.register_class(ExportDAE)
     bpy.types.INFO_MT_file_export.append(menu_func)
 
-    bpy.types.Scene.daefileprogress = PointerProperty(
+    """ bpy.types.Scene.daefileprogress = PointerProperty(
         name="File Export Progress",
         description="Used to render file browser progress",
         type=ExportProgressProperties
-    )
+    ) """
 
     wm = bpy.context.window_manager
     km = wm.keyconfigs.addon.keymaps.new('Window', space_type='EMPTY', region_type='WINDOW', modal=False)
@@ -1661,7 +1658,7 @@ def unregister():
         bpy.types.INFO_MT_file_export.remove(menu_func)
         bpy.app.handlers.scene_update_post.remove(leaderhelpers_register_exportdraw)
         #bpy.types.FILEBROWSER_HT_header.remove(draw_file_progress)
-        del bpy.types.Scene.daefileprogress
+        #del bpy.types.Scene.daefileprogress
 
         wm = bpy.context.window_manager
         kc = wm.keyconfigs.addon
