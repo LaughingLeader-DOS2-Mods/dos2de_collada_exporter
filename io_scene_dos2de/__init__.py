@@ -916,10 +916,10 @@ class ExportDAE(Operator, ExportHelper):
         if self.use_mesh_modifiers:
             row.prop(self, "use_exclude_armature_modifier")
 
-        col = layout.column(align=True)
-        row = col.row(align=True)
-        row.prop(self, "xflip_armature")
-        row.prop(self, "xflip_mesh")
+        #col = layout.column(align=True)
+        #row = col.row(align=True)
+        #row.prop(self, "xflip_armature")
+        #row.prop(self, "xflip_mesh")
 
         box = layout.box()
         box.prop(self, "use_anim")
