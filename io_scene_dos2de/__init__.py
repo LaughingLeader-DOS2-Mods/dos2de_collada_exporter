@@ -404,7 +404,7 @@ class ExportDAE(Operator, ExportHelper):
         default=".dae"
     )
 
-    filter_glob = StringProperty(default="*.dae", options={"HIDDEN"})
+    filter_glob = StringProperty(default="*.dae;*.gr2", options={"HIDDEN"})
     
     filename = StringProperty(
         name="File Name",
@@ -1486,7 +1486,7 @@ class ExportDAE(Operator, ExportHelper):
             if activeObject.type != "ARMATURE" and current_mode == "POSE":
                 bpy.ops.object.mode_set(mode="OBJECT")
             else:
-                bpy.ops.object.mode_set (mode=current_mode )
+                bpy.ops.object.mode_set (mode=current_mode)
 
         if self.convert_gr2:
             if (addon_prefs.lslib_path is not None and addon_prefs.lslib_path != "" 
