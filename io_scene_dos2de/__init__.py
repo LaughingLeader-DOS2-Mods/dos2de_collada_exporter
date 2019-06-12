@@ -40,7 +40,7 @@ bl_info = {
     "blender": (2, 7, 9),
     "api": 38691,
     "location": "File > Import-Export",
-    "description": ("Export DAE Scenes."),
+    "description": ("Export Collada/Granny files for Divinity: Original Sin 2 - Definitive Edition."),
     "warning": "",
     "wiki_url": (""),
     "tracker_url": "",
@@ -1606,8 +1606,7 @@ class DOS2DEExtraFlagsOperator(Operator):
         self.layout.prop(self, "flag")
 
 def menu_func(self, context):
-    self.layout.operator(ExportDAE.bl_idname,
-                         text="DOS2DE Collada (.dae)")
+    self.layout.operator(ExportDAE.bl_idname, text="DOS2DE Collada (.dae, .gr2)")
 
 addon_keymaps = []
 
