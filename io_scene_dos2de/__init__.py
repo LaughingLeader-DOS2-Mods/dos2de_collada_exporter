@@ -1007,9 +1007,10 @@ class ExportDAE(Operator, ExportHelper):
             if addon_prefs.default_preset != "NONE":
                 self.selected_preset = addon_prefs.default_preset
 
-        helper_preferences = context.user_preferences.addons["laughingleader_blender_helpers"].preferences
-        if helper_preferences is not None:
-            self.debug_mode = getattr(helper_preferences, "debug_mode", False)
+        if "laughingleader_blender_helpers" in context.user_preferences.addons:
+            helper_preferences = context.user_preferences.addons["laughingleader_blender_helpers"].preferences
+            if helper_preferences is not None:
+                self.debug_mode = getattr(helper_preferences, "debug_mode", False)
         #print("Preset: \"{}\"".format(self.selected_preset))
 
         # Multiple meshes tend to need different materials for programs like Substance Painter
