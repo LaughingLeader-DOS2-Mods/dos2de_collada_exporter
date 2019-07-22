@@ -1238,7 +1238,8 @@ class ExportDAE(Operator, ExportHelper):
             copy.parent = parent
             copy.matrix_parent_inverse = obj.matrix_parent_inverse.copy()
             if parent.type == "ARMATURE":
-                armature_modifiers = (mod for mod in copy.modifiers if mod.type == "ARMATURE" and mod.object.name == obj.parent.name)
+                armature_modifiers = (mod for mod in copy.modifiers if mod.type == "ARMATURE" and 
+                    obj.parent is not None and mod.object is not None and mod.object.name == obj.parent.name)
                 for mod in armature_modifiers:
                     mod.object = parent
                     print("   [DOS2DE-Export] Updated armature modifier to point to the copied armature {} for child {}".format(parent.name, copy.name))

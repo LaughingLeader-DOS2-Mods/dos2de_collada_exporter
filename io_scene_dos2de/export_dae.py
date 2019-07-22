@@ -351,8 +351,6 @@ class DaeExporter:
         surface_indices = {}
         materials = {}
 
-        materials = {}
-
         si = None
         if armature is not None:
             si = self.skeleton_info[armature]
@@ -384,6 +382,7 @@ class DaeExporter:
             if not (f.material_index in surface_indices):
                 surface_indices[f.material_index] = []
 
+            if self.can_export_type("MATERIAL"):
                 try:
                     # TODO: Review, understand why it throws
                     mat = mesh.materials[f.material_index]
@@ -652,7 +651,9 @@ class DaeExporter:
 
         for m in surface_indices:
             indices = surface_indices[m]
-            mat = materials[m]
+            mat = None
+            if m in materials:
+                mat = materials[m]
             if (mat is not None):
                 matref = self.new_id("trimat")
                 self.writel(
@@ -662,7 +663,7 @@ class DaeExporter:
                 mat_assign.append((mat, matref))
             else:
                 self.writel(S_GEOM, 3, "<{} count=\"{}\">".format(
-                    prim_type, int(len(indices))))  # TODO: Implement material
+                    prim_type, int(len(indices))))
             
             self.writel(
                 S_GEOM, 4, "<input semantic=\"VERTEX\" "
