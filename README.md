@@ -2,6 +2,8 @@
 
 An addon for Blender that allows you to export dae/gr2 files for the game Divinity: Original Sin 2 - Definitive Edition.
 
+_[Be sure to grab the LaughingLeader Helpers addon for layer support and additional export setup on individual objects.](https://github.com/LaughingLeader/laughingleader_blender_helpers)_
+
 ## Features:  
 * Export to dae, or export to gr2 if the path to divine.exe is set.
 * Automatically rotate the object for DOS2's Y-Up world (Blender is Z-Up).
