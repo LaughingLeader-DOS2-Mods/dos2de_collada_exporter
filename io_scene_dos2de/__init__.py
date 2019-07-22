@@ -1519,7 +1519,7 @@ class ExportDAE(Operator, ExportHelper):
                             self.report({"ERROR"}, error_message)
                             print(error_message)
                         else:
-                            if self.divine_settings.delete_collada:
+                            if self.divine_settings.delete_collada and os.path.isfile(collada_file):
                                 print("[DOS2DE-Collada] GR2 conversion successful. Deleting temporary collada file '{}'.".format(collada_file))
                                 os.remove(collada_file)
 
