@@ -1442,7 +1442,8 @@ class ExportDAE(Operator, ExportHelper):
                 else:
                     single_mode = True
         if single_mode:
-            export_filepath = bpy.path.ensure_ext(self.filepath, self.filename_ext)
+            pathNoextension = os.path.splitext(self.filepath)[0]
+            export_filepath = bpy.path.ensure_ext(pathNoextension, self.filename_ext)
             result = export_dae.save(self, context, modifyObjects, filepath=export_filepath, **keywords)
             if result == {"FINISHED"}:
                 exported_pathways.append(export_filepath)
