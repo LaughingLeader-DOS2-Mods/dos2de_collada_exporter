@@ -515,21 +515,8 @@ class ExportDAE(Operator, ExportHelper):
 
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons["io_scene_dos2de"].preferences
-        
-        if self.auto_determine_path == True and addon_prefs.auto_export_subfolder == True and self.export_directory != "":
-            auto_directory = self.export_directory
-            if self.selected_preset != "NONE":
-                if self.selected_preset == "MODEL":
-                    auto_directory = "{}\\{}".format(self.export_directory, "Models")
-                elif self.selected_preset == "ANIMATION":
-                    auto_directory = "{}\\{}".format(self.export_directory, "Animations")
-                elif self.selected_preset == "MESHPROXY":
-                    auto_directory = "{}\\{}".format(self.export_directory, "Proxy")
-            
-            if not os.path.exists(auto_directory):
-                os.mkdir(auto_directory)
-            self.directory = auto_directory
-            self.update_path = True
+
+        next_path = ""
 
         if self.filepath != "":
             if self.auto_name == "LAYER":
@@ -538,10 +525,7 @@ class ExportDAE(Operator, ExportHelper):
                     if namedlayers is not None:
                         for i in range(20):
                             if (bpy.data.scenes[context.scene.name].layers[i]):
-                                self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, 
-                                                        namedlayers.layers[i].name),
-                                                    self.filename_ext)
-                                self.update_path = True
+                                next_path = namedlayers.layers[i].name
                 else:
                     self.log_message = "The 3D Layer Manager addon must be enabled before you can use layer names when exporting."
             elif self.auto_name == "ACTION":
@@ -569,16 +553,35 @@ class ExportDAE(Operator, ExportHelper):
                             armature.animation_data.action is not None
                             else "")
                     if anim_name != "":
-                        self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, anim_name), self.filename_ext)
-                        self.update_path = True
+                        next_path = anim_name
                     else:
                         #Blend name
-                        self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, str.replace(bpy.path.basename(bpy.data.filepath), ".blend", "")), self.filename_ext)
+                        next_path = str.replace(bpy.path.basename(bpy.data.filepath), ".blend", "")
             elif self.auto_name == "DISABLED" and self.last_filepath != "":
                 self.auto_filepath = self.last_filepath
-                self.update_path = True
-            #if self.update_path:
-                #print("[DOS2DE] Filepath set to " + str(self.auto_filepath))
+
+        if self.auto_determine_path == True and addon_prefs.auto_export_subfolder == True and self.export_directory != "":
+            auto_directory = self.export_directory
+            if self.selected_preset != "NONE":
+                if self.selected_preset == "MODEL":
+                    if "_FX_" in next_path:
+                        auto_directory = "{}\\Models\\Effects".format(self.export_directory)
+                    else:
+                        auto_directory = "{}\\{}".format(self.export_directory, "Models")
+                elif self.selected_preset == "ANIMATION":
+                    auto_directory = "{}\\{}".format(self.export_directory, "Animations")
+                elif self.selected_preset == "MESHPROXY":
+                    auto_directory = "{}\\{}".format(self.export_directory, "Proxy")
+            
+            if not os.path.exists(auto_directory):
+                os.mkdir(auto_directory)
+            self.directory = auto_directory
+            self.update_path = True
+
+        if next_path != "":
+            self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, next_path), self.filename_ext)
+            self.update_path = True
+
         return
  
     misc_settings_visible = BoolProperty(
@@ -1340,6 +1343,9 @@ class ExportDAE(Operator, ExportHelper):
                         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
                         bpy.ops.object.select_all(action='DESELECT')
 
+                        print(" {} Final (x={}, y={}, z={})".format(obj.name, degrees(obj.rotation_euler[0]),
+                                    degrees(obj.rotation_euler[1]), degrees(obj.rotation_euler[2]))
+                                )
             if self.xflip_armature and obj.type == "ARMATURE":
                 obj.scale = (1.0, -1.0, 1.0)
                 self.transform_apply(context, obj, scale=True)
