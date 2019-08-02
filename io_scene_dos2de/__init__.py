@@ -577,6 +577,8 @@ class ExportDAE(Operator, ExportHelper):
                 os.mkdir(auto_directory)
             self.directory = auto_directory
             self.update_path = True
+        
+        print("Dir export_directory({}) self.directory({})".format(self.export_directory, self.directory))
 
         if next_path != "":
             self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, next_path), self.filename_ext)
@@ -999,6 +1001,9 @@ class ExportDAE(Operator, ExportHelper):
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons["io_scene_dos2de"].preferences
 
+        blend_path = bpy.data.filepath
+        print("Blend path: {} ".format(blend_path))
+
         if addon_prefs.gr2_default_enabled == True and self.gr2_default_enabled_ignore == False:
             self.convert_gr2 = True
 
@@ -1055,10 +1060,10 @@ class ExportDAE(Operator, ExportHelper):
                     project_folder = project.project_folder
                     export_folder = project.export_folder
 
-                    print("Checking {} for {}".format(self.filepath, project_folder))
+                    print("Checking {} for {}".format(blend_path, project_folder))
 
                     if(export_folder != "" and project_folder != "" and 
-                        bpy.path.is_subdir(self.filepath, project_folder)):
+                        bpy.path.is_subdir(blend_path, project_folder)):
                             self.export_directory = export_folder
                             self.directory = export_folder
                             self.filepath = export_folder
@@ -1230,6 +1235,8 @@ class ExportDAE(Operator, ExportHelper):
     def copy_obj(self, context, obj, parent=None):
         copy = obj.copy()
         copy.data = obj.data.copy()
+        copy.llexportprops.copy(obj.llexportprops)
+
         context.scene.objects.link(copy)
         
         if hasattr(obj, "llexportprops"):

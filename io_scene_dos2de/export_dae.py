@@ -1457,6 +1457,7 @@ class DaeExporter:
         export_name = node.get("export_name", node.name)
         exportid = self.new_id(export_name)
 
+        #print("Export name: {} id {}".format(export_name, exportid))
         export_armature_enabled = True
 
         if node.type != "ARMATURE" or export_armature_enabled == True:
