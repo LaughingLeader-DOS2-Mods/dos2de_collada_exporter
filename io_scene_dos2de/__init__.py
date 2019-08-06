@@ -1499,11 +1499,14 @@ class ExportDAE(Operator, ExportHelper):
             bpy.context.scene.objects.active = activeObject
         
         # Return to previous mode
-        if current_mode is not None and activeObject is not None:
-            if activeObject.type != "ARMATURE" and current_mode == "POSE":
-                bpy.ops.object.mode_set(mode="OBJECT")
-            else:
-                bpy.ops.object.mode_set (mode=current_mode)
+        try:
+            if current_mode is not None and activeObject is not None:
+                if activeObject.type != "ARMATURE" and current_mode == "POSE":
+                    bpy.ops.object.mode_set(mode="OBJECT")
+                else:
+                    bpy.ops.object.mode_set (mode=current_mode)
+        except Exception as e:
+            print("[DOS2DE-Collada] Error setting viewport mode:\n{}".format(e))
 
         if self.convert_gr2:
             if (addon_prefs.lslib_path is not None and addon_prefs.lslib_path != "" 
@@ -1521,8 +1524,8 @@ class ExportDAE(Operator, ExportHelper):
                             divine_exe, self.divine_settings.game, '"{}"'.format(collada_file), '"{}"'.format(gr2_path), gr2_options_str
                         )
                         
-                        print("Starting GR2 conversion using divine.exe.")
-                        print("Sending command: {}".format(proccess_args))
+                        print("[DOS2DE-Collada] Starting GR2 conversion using divine.exe.")
+                        print("[DOS2DE-Collada] Sending command: {}".format(proccess_args))
 
                         process = subprocess.run(proccess_args, 
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
