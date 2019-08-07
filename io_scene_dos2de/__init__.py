@@ -523,20 +523,17 @@ class ExportDAE(Operator, ExportHelper):
                 if "namedlayers" in bpy.data.scenes[context.scene.name]:
                     namedlayers = getattr(bpy.data.scenes[context.scene.name], "namedlayers", None)
                     if namedlayers is not None:
-                        for i in range(20):
-                            if (bpy.data.scenes[context.scene.name].layers[i]):
-                                next_path = namedlayers.layers[i].name
+                        #print("ACTIVE_LAYER: {}".format(context.scene.active_layer))
+                        if (bpy.data.scenes[context.scene.name].layers[context.scene.active_layer]):
+                                next_path = namedlayers.layers[context.scene.active_layer].name
                 else:
                     self.log_message = "The 3D Layer Manager addon must be enabled before you can use layer names when exporting."
             elif self.auto_name == "ACTION":
                 armature = None
                 if self.use_active_layers:
-                    for i in range(20):
-                        if context.scene.layers[i]:
-                            for obj in context.scene.objects:
-                                if obj.layers[i] and obj.type == "ARMATURE":
-                                    armature = obj
-                                    break
+                    obj = next(iter([x for x in context.scene.objects if x.type == "ARMATURE" and x.layers[context.scene.active_layer]]))
+                    if obj is not None:
+                        armature = obj
                 elif self.use_export_selected:
                     for obj in context.scene.objects:
                         if obj.select and obj.type == "ARMATURE":
