@@ -752,7 +752,7 @@ class DaeExporter:
             elif mesh_extra == "meshproxy":
                 self.writel(S_GEOM, 5, "<DivModelType>MeshProxy</DivModelType>")
             elif mesh_extra == "rigidcloth":
-                self.writel(S_GEOM, 5, "<DivModelType>RigidCloth</DivModelType>")
+                self.writel(S_GEOM, 5, "<DivModelType>Rigid</DivModelType><DivModelType>Cloth</DivModelType>")
             else:
                 self.writel(S_GEOM, 5, "<DivModelType>Normal</DivModelType>")
 
