@@ -1089,6 +1089,9 @@ class ExportDAE(Operator, ExportHelper):
         return True
 
     def merge_armatures(self, context, modifyObjects):
+        if not hasattr(context.scene, "llexportmerge"):
+            return modifyObjects
+
         if len(context.scene.llexportmerge.armatures) <= 1:
             print("[DOS2DE-Export] [Warning] Only 1 object to merge. Skipping.")
             return modifyObjects
@@ -1138,6 +1141,9 @@ class ExportDAE(Operator, ExportHelper):
         return modifyObjects
 
     def merge_meshes(self, context, modifyObjects):
+        if not hasattr(context.scene, "llexportmerge"):
+            return modifyObjects
+        
         if len(context.scene.llexportmerge.meshes) <= 1:
             print("[DOS2DE-Export] [Warning] Only 1 object to merge. Skipping.")
             return modifyObjects
@@ -1232,12 +1238,12 @@ class ExportDAE(Operator, ExportHelper):
     def copy_obj(self, context, obj, parent=None):
         copy = obj.copy()
         copy.data = obj.data.copy()
-        copy.llexportprops.copy(obj.llexportprops)
-
-        context.scene.objects.link(copy)
         
         if hasattr(obj, "llexportprops"):
+            copy.llexportprops.copy(obj.llexportprops)
             copy.llexportprops.original_name = obj.name
+
+        context.scene.objects.link(copy)
 
         print("[DOS2DE-Export] Created a copy of object/data {} ({}/{})".format(obj.name, copy.name, copy.data.name))
 
