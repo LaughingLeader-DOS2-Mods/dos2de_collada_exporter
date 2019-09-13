@@ -1287,7 +1287,7 @@ class ExportDAE(Operator, ExportHelper):
         selectedObjects = []
         copies = []
 
-        if activeObject is not None:
+        if activeObject is not None and not activeObject.hide:
             bpy.ops.object.mode_set(mode="OBJECT")
         
         for obj in context.scene.objects:
@@ -1503,7 +1503,7 @@ class ExportDAE(Operator, ExportHelper):
         
         # Return to previous mode
         try:
-            if current_mode is not None and activeObject is not None:
+            if current_mode is not None and activeObject is not None and not activeObject.hide:
                 if activeObject.type != "ARMATURE" and current_mode == "POSE":
                     bpy.ops.object.mode_set(mode="OBJECT")
                 else:
