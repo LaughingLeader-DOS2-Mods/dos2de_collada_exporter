@@ -575,7 +575,7 @@ class ExportDAE(Operator, ExportHelper):
             self.directory = auto_directory
             self.update_path = True
         
-        print("Dir export_directory({}) self.directory({})".format(self.export_directory, self.directory))
+        #print("Dir export_directory({}) self.directory({})".format(self.export_directory, self.directory))
 
         if next_path != "":
             self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, next_path), self.filename_ext)
@@ -999,7 +999,7 @@ class ExportDAE(Operator, ExportHelper):
         addon_prefs = user_preferences.addons["io_scene_dos2de"].preferences
 
         blend_path = bpy.data.filepath
-        print("Blend path: {} ".format(blend_path))
+        #print("Blend path: {} ".format(blend_path))
 
         if addon_prefs.gr2_default_enabled == True and self.gr2_default_enabled_ignore == False:
             self.convert_gr2 = True
