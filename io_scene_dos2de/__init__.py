@@ -900,23 +900,40 @@ class ExportDAE(Operator, ExportHelper):
         box.prop(self, "auto_name")
         box.prop(self, "yup_enabled")
        
-        col = layout.column(align=True)
-        row = col.row(align=True)
-        row.prop(self, "use_active_layers")
-        row.prop(self, "use_export_visible")
-        row.prop(self, "use_export_selected")
+        row1 = layout.row(align=True)
+        row1col1 = row1.column(align=True)
+        row1col2 = row1.column(align=True)
+        row1col3 = row1.column(align=True)
+       
+        row2 = layout.row(align=True)
+        row2col1 = row2.column(align=True)
+        row2col2 = row2.column(align=True)
+        row2col3 = row2.column(align=True)
+       
+        row3 = layout.row(align=True)
+        row3col1 = row3.column(align=True)
+        row3col2 = row3.column(align=True)
+        row3col3 = row3.column(align=True)
 
-        col = layout.column(align=True)
-        row = col.row(align=True)
-        row.prop(self, "use_tangent")
-        row.prop(self, "use_triangles")
-        col.prop(self, "use_normalize_vert_groups")
+        row1col1.prop(self, "use_active_layers")
+        row1col2.prop(self, "use_export_visible")
+        row1col3.prop(self, "use_export_selected")
 
-        col = layout.column(align=True)
-        row = col.row(align=True)
-        row.prop(self, "use_mesh_modifiers")
+        row2col1.prop(self, "use_tangent")
+        row2col2.prop(self, "use_triangles")
+        row2col3.prop(self, "use_normalize_vert_groups")
+
+        col3 = layout.column(align=True)
+        row1 = col3.row(align=True)
+        row2 = col3.row(align=True)
+        row3 = col3.row(align=True)
+
+        row3col1.prop(self, "use_triangles")
+        row3col2.prop(self, "use_normalize_vert_groups")
+        row3col3.prop(self, "use_mesh_modifiers")
+
         if self.use_mesh_modifiers:
-            row.prop(self, "use_exclude_armature_modifier")
+            row3col3.prop(self, "use_exclude_armature_modifier")
 
         #col = layout.column(align=True)
         #row = col.row(align=True)
