@@ -704,7 +704,7 @@ class ExportDAE(Operator, ExportHelper):
         name="Exclude Control Bones",
         description=("Exclude skeleton bones with names beginning with 'ctrl' "
                      "or bones which are not marked as Deform bones."),
-        default=True
+        default=False
         )
     use_anim = BoolProperty(
         name="Export Animation",
@@ -720,12 +720,12 @@ class ExportDAE(Operator, ExportHelper):
         name="Skip (-noexp) Actions",
         description="Skip exporting of actions whose name end in (-noexp)."
                     " Useful to skip control animations.",
-        default=True
+        default=False
         )
     use_anim_optimize = BoolProperty(
         name="Optimize Keyframes",
         description="Remove double keyframes",
-        default=True
+        default=False
         )
 
     use_shape_key_export = BoolProperty(
@@ -740,7 +740,7 @@ class ExportDAE(Operator, ExportHelper):
                      "(higher for greater accuracy)"),
         min=1, max=16,
         soft_min=1, soft_max=16,
-        default=6.0
+        default=16.0
         )
 
     applying_preset = BoolProperty(default=False)
@@ -814,17 +814,17 @@ class ExportDAE(Operator, ExportHelper):
             if self.yup_local_override is False:
                 self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = False
-            self.use_tangent = False
-            self.use_triangles = False
+            self.use_tangent = True
+            self.use_triangles = True
             self.use_active_layers = True
             self.auto_name = "ACTION"
 
             self.xflip_armature = False
             self.xflip_mesh = False
             self.use_copy_images = False
-            self.use_exclude_ctrl_bones = True
+            self.use_exclude_ctrl_bones = False
             self.use_anim = True
-            self.use_anim_skip_noexp = True
+            self.use_anim_skip_noexp = False
             self.use_anim_optimize = False
             self.use_shape_key_export = False
 
@@ -916,25 +916,18 @@ class ExportDAE(Operator, ExportHelper):
         row3col3 = row3.column(align=True)
 
         row1col1.prop(self, "use_active_layers")
-        row1col2.prop(self, "use_export_visible")
-        row1col3.prop(self, "use_export_selected")
+        row2col1.prop(self, "use_export_visible")
+        row3col1.prop(self, "use_export_selected")
 
-        row2col1.prop(self, "use_tangent")
+        row1col2.prop(self, "use_tangent")
         row2col2.prop(self, "use_triangles")
-        row2col3.prop(self, "use_normalize_vert_groups")
-
-        col3 = layout.column(align=True)
-        row1 = col3.row(align=True)
-        row2 = col3.row(align=True)
-        row3 = col3.row(align=True)
-
-        row3col1.prop(self, "use_triangles")
         row3col2.prop(self, "use_normalize_vert_groups")
-        row3col3.prop(self, "use_mesh_modifiers")
 
-        if self.use_mesh_modifiers:
-            row3col3.prop(self, "use_exclude_armature_modifier")
-
+        row1col3.prop(self, "use_normalize_vert_groups")
+        row2col3.prop(self, "use_mesh_modifiers")
+        row3col3.prop(self, "use_exclude_armature_modifier")
+        #if self.use_mesh_modifiers:
+        
         #col = layout.column(align=True)
         #row = col.row(align=True)
         #row.prop(self, "xflip_armature")
