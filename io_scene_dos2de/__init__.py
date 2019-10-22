@@ -666,7 +666,7 @@ class ExportDAE(Operator, ExportHelper):
     use_mesh_modifiers = BoolProperty(
         name="Apply Modifiers",
         description="Apply modifiers to mesh objects (on a copy!).",
-        default=False,
+        default=True,
         )
     use_exclude_armature_modifier = BoolProperty(
         name="Exclude Armature Modifier",
@@ -921,7 +921,8 @@ class ExportDAE(Operator, ExportHelper):
 
         row1col2.prop(self, "use_tangent")
         row2col2.prop(self, "use_triangles")
-        row3col2.prop(self, "use_normalize_vert_groups")
+        row3col2.label("")
+        #row3col2.prop(self, "use_normalize_vert_groups")
 
         row1col3.prop(self, "use_normalize_vert_groups")
         row2col3.prop(self, "use_mesh_modifiers")
@@ -1248,6 +1249,10 @@ class ExportDAE(Operator, ExportHelper):
     def copy_obj(self, context, obj, parent=None):
         copy = obj.copy()
         copy.data = obj.data.copy()
+        try:
+            copy.use_fake_user = False
+            copy.data.use_fake_user = False
+        except: pass
         
         if hasattr(obj, "llexportprops"):
             copy.llexportprops.copy(obj.llexportprops)
@@ -1620,6 +1625,7 @@ class DOS2DEExtraFlagsOperator(Operator):
                 del obj["meshproxy"]
             if "rigidcloth" in obj:
                 del obj["rigidcloth"]
+        self.flag = "DISABLED"
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -1631,6 +1637,8 @@ class DOS2DEExtraFlagsOperator(Operator):
             self.flag = "MESHPROXY"
         elif "rigidcloth" in context.object:
             self.flag = "RIGIDCLOTH"
+        else:
+            self.flag = "DISABLED"
         
         wm = context.window_manager
         return wm.invoke_props_dialog(self)
