@@ -1250,7 +1250,9 @@ class ExportDAE(Operator, ExportHelper):
 
     def copy_obj(self, context, obj, parent=None):
         copy = obj.copy()
-        copy.data = obj.data.copy()
+        data = getattr(obj, "data", None)
+        if data != None:
+            copy.data = data.copy()
         try:
             copy.use_fake_user = False
             copy.data.use_fake_user = False
@@ -1262,7 +1264,7 @@ class ExportDAE(Operator, ExportHelper):
 
         context.scene.objects.link(copy)
 
-        print("[DOS2DE-Export] Created a copy of object/data {} ({}/{})".format(obj.name, copy.name, copy.data.name))
+        print("[DOS2DE-Export] Created a copy of object/data {} ({})".format(obj.name, copy.name))
 
         if parent is not None:
             copy.parent = parent
