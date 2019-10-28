@@ -578,6 +578,8 @@ class ExportDAE(Operator, ExportHelper):
         #print("Dir export_directory({}) self.directory({})".format(self.export_directory, self.directory))
 
         if next_path != "":
+            if self.selected_preset == "MESHPROXY":
+                next_path = "Proxy_{}".format(next_path)
             self.auto_filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, next_path), self.filename_ext)
             self.update_path = True
 
