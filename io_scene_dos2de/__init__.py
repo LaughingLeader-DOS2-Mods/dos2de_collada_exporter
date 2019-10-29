@@ -126,8 +126,8 @@ class ProjectEntry(PropertyGroup):
     project_data = CollectionProperty(type=ProjectData)
     index = IntProperty()
 
-class AddProjectOperator(Operator):
-    bl_idname = "userpreferences.dos2de_settings_addproject"
+class DIVINITYEXPORTER_OT_add_project(Operator):
+    bl_idname = "divinityexporter.add_project"
     bl_label = "Add Project"
     bl_description = "Add an entry to the project list"
 
@@ -137,8 +137,8 @@ class AddProjectOperator(Operator):
         project = addon_prefs.projects.project_data.add()
         return {'FINISHED'}
 
-class RemoveProjectOperator(Operator):
-    bl_idname = "userpreferences.dos2de_settings_removeproject"
+class DIVINITYEXPORTER_OT_remove_project(Operator):
+    bl_idname = "divinityexporter.remove_project"
     bl_label = "Remove"
     bl_description = "Remove Project"
 
@@ -162,12 +162,12 @@ class RemoveProjectOperator(Operator):
 
         return {'FINISHED'}
 
-class DivinityProjectList(UIList):
+class DIVINITYEXPORTER_UI_project_list(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             layout.prop(item, "project_folder", text="Project Folder")
             layout.prop(item, "export_folder", text="Export Folder")
-            op = layout.operator("userpreferences.dos2de_settings_removeproject", icon="CANCEL", text="", emboss=False)
+            op = layout.operator("divinityexporter.remove_project", icon="CANCEL", text="", emboss=False)
             #Is there no better way?
             project = op.selected_project.add()
             project.project_folder = item.project_folder
@@ -177,7 +177,7 @@ class DivinityProjectList(UIList):
             layout.alignment = 'CENTER'
             layout.label(text="", icon_value=icon)
 
-class ExportColladaAddonPreferences(AddonPreferences):
+class DIVINITYEXPORTER_AddonPreferences(AddonPreferences):
     bl_idname = "io_scene_dos2de"
 
     lslib_path = StringProperty(
@@ -229,8 +229,8 @@ class ExportColladaAddonPreferences(AddonPreferences):
 
         layout.separator()
         layout.label("Projects")
-        layout.template_list("DivinityProjectList", "", self.projects, "project_data", self.projects, "index")
-        layout.operator("userpreferences.dos2de_settings_addproject")
+        layout.template_list("DIVINITYEXPORTER_UI_project_list", "", self.projects, "project_data", self.projects, "index")
+        layout.operator("divinityexporter.add_project")
 
 class GR2_ExportSettings(PropertyGroup):
     """GR2 Export Options"""
@@ -361,6 +361,11 @@ class Divine_ExportSettings(PropertyGroup):
         default=False
     )
 
+    keep_bind_info = BoolProperty(
+		name="Keep Bind Info",
+		description="Store Bindpose information in custom bone properties for later use during Collada export",
+		default=True)
+
     navigate_to_blendfolder = BoolProperty(default=False)
 
     drawable_props = [
@@ -392,7 +397,7 @@ class Divine_ExportSettings(PropertyGroup):
         for prop in self.drawable_props:
             obj.prop(self, prop)
 
-class ExportDAE(Operator, ExportHelper):
+class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
     """Export to Collada with Divinity-specific options (.dae)"""
     bl_idname = "export_scene.dos2de_collada"
     bl_label = "Export Divinity DAE"
@@ -1574,7 +1579,7 @@ class ExportDAE(Operator, ExportHelper):
 
         return result
 
-class DOS2DEExtraFlagsOperator(Operator):
+class DIVINITYEXPORTER_OT_set_extra_flags(Operator):
     """Set the GR2 Extra Flag for Export"""
     bl_idname = "export_scene.dos2de_extraflagsop"
     bl_label = "DOS2DE Extra Flags"
@@ -1651,14 +1656,14 @@ class DOS2DEExtraFlagsOperator(Operator):
         self.layout.prop(self, "flag")
 
 def menu_func(self, context):
-    self.layout.operator(ExportDAE.bl_idname, text="DOS2DE Collada (.dae, .gr2)")
+    self.layout.operator(DIVINITYEXPORTER_OT_export_collada.bl_idname, text="DOS2DE Collada (.dae, .gr2)")
 
 addon_keymaps = []
 
 def draw_export_options(self, context):
     col = self.layout.column()
     col.label("DOS2DE Collada Settings")
-    col.operator(DOS2DEExtraFlagsOperator.bl_idname)
+    col.operator(DIVINITYEXPORTER_OT_set_extra_flags.bl_idname)
 
 added_export_options = False
 
@@ -1678,7 +1683,7 @@ def leaderhelpers_register_exportdraw(scene):
 
 def register():
     bpy.utils.register_module(__name__)
-    #bpy.utils.register_class(ExportDAE)
+    #bpy.utils.register_class(DIVINITYEXPORTER_OT_export_collada)
     bpy.types.INFO_MT_file_export.append(menu_func)
 
     """ bpy.types.Scene.daefileprogress = PointerProperty(
@@ -1690,16 +1695,16 @@ def register():
     wm = bpy.context.window_manager
     km = wm.keyconfigs.addon.keymaps.new('Window', space_type='EMPTY', region_type='WINDOW', modal=False)
 
-    kmi = km.keymap_items.new(ExportDAE.bl_idname, 'E', 'PRESS', ctrl=True, shift=True)
+    kmi = km.keymap_items.new(DIVINITYEXPORTER_OT_export_collada.bl_idname, 'E', 'PRESS', ctrl=True, shift=True)
     #print(__name__)
-    #kmi.properties.name = ExportDAE.bl_idname
+    #kmi.properties.name = DIVINITYEXPORTER_OT_export_collada.bl_idname
     addon_keymaps.append((km, kmi))
     
     bpy.app.handlers.scene_update_post.append(leaderhelpers_register_exportdraw)
 
 def unregister():
     bpy.utils.unregister_module(__name__)
-    #bpy.utils.unregister_class(ExportDAE)
+    #bpy.utils.unregister_class(DIVINITYEXPORTER_OT_export_collada)
 
     try:
         bpy.types.INFO_MT_file_export.remove(menu_func)
