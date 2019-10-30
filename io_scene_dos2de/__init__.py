@@ -798,8 +798,8 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             self.use_active_layers = True
             self.auto_name = "LAYER"
 
-            self.xflip_armature = False
-            self.xflip_mesh = False
+            #self.xflip_armature = False
+            #self.xflip_mesh = False
             self.use_copy_images = False
             self.use_exclude_ctrl_bones = False
             self.use_anim = False
@@ -826,8 +826,8 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             self.use_active_layers = True
             self.auto_name = "ACTION"
 
-            self.xflip_armature = False
-            self.xflip_mesh = False
+            #self.xflip_armature = False
+            #self.xflip_mesh = False
             self.use_copy_images = False
             self.use_exclude_ctrl_bones = False
             self.use_anim = True
@@ -852,8 +852,8 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             self.use_active_layers = True
             self.auto_name = "LAYER"
 
-            self.xflip_armature = False
-            self.xflip_mesh = False
+            #self.xflip_armature = False
+            #self.xflip_mesh = False
             self.use_copy_images = False
             self.use_exclude_ctrl_bones = False
             self.use_anim = False
@@ -928,7 +928,8 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
 
         row1col2.prop(self, "use_tangent")
         row2col2.prop(self, "use_triangles")
-        row3col2.label("")
+        #row3col2.label("")
+        row3col2.prop(self, "xflip_mesh")
         #row3col2.prop(self, "use_normalize_vert_groups")
 
         row1col3.prop(self, "use_normalize_vert_groups")
@@ -1304,7 +1305,8 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             activeObject = bpy.context.scene.objects.active
 
         if self.xflip_mesh:
-            bm = bmesh.new()
+            #bm = bmesh.new()
+            pass
         
         targetObjects = []
         modifyObjects = []
@@ -1386,9 +1388,16 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                 print("Flipped and applied scale transformation for {} ".format(obj.name))
 
             if self.xflip_mesh and obj.type == "MESH":
+                self.transform_apply(context, obj, scale=True)
                 obj.scale = (1.0, -1.0, 1.0)
+                self.transform_apply(context, obj, scale=True)
+                #bpy.ops.object.mode_set(mode="EDIT")
+                #bpy.ops.mesh.flip_normals()
+                #bpy.ops.object.mode_set(mode="OBJECT")
+                bm = bmesh.new()
                 bm.from_mesh(obj.data)
-                bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+                #bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+                bmesh.ops.reverse_faces(bm, faces=bm.faces)
                 bm.to_mesh(obj.data)
                 bm.clear()
                 obj.data.update()
