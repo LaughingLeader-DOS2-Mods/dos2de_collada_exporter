@@ -658,8 +658,8 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         )
     xflip_mesh = BoolProperty(
         name="X-Flip Mesh",
-        description="Flips the mesh on the x-axis.",
-        default=False
+        description="Flips meshes on the x-axis (DOS2/granny x-flips everything for some reason).",
+        default=True
         )
     auto_name = EnumProperty(
         name="Auto-Name",
@@ -1336,7 +1336,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                         copies.append(childcopy)
 
         merging_enabled = hasattr(context.scene, "llexportmerge")
-
+        
         for obj in modifyObjects:
             if hasattr(obj, "llexportprops"):
                 if not obj.parent:
@@ -1345,7 +1345,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                     for childobj in obj.children:
                         print("  Preparing export properties for child {}".format(childobj.name))
                         childobj.llexportprops.prepare(context, childobj)
-
+            
             if self.yup_enabled == "ROTATE":
                     if not obj.parent:
                         print("  Rotating {} to y-up. | (x={}, y={}, z={})".format(obj.name, degrees(obj.rotation_euler[0]),
@@ -1355,7 +1355,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                         print("  Rotated {} to y-up. | (x={}, y={}, z={})".format(obj.name, degrees(obj.rotation_euler[0]),
                                     degrees(obj.rotation_euler[1]), degrees(obj.rotation_euler[2]))
                                 )
-
+                        
                         self.transform_apply(context, obj, rotation=True)
 
                         for childobj in obj.children:
@@ -1378,18 +1378,18 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                         obj.select = True
                         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
                         bpy.ops.object.select_all(action='DESELECT')
-
-                        print(" {} Final (x={}, y={}, z={})".format(obj.name, degrees(obj.rotation_euler[0]),
-                                    degrees(obj.rotation_euler[1]), degrees(obj.rotation_euler[2]))
-                                )
+                        # print(" {} Final (x={}, y={}, z={})".format(obj.name, degrees(obj.rotation_euler[0]),
+                        #             degrees(obj.rotation_euler[1]), degrees(obj.rotation_euler[2]))
+                        #         )
+            
             if self.xflip_armature and obj.type == "ARMATURE":
-                obj.scale = (1.0, -1.0, 1.0)
+                obj.scale = (-1.0, 1.0, 1.0)
                 self.transform_apply(context, obj, scale=True)
                 print("Flipped and applied scale transformation for {} ".format(obj.name))
 
             if self.xflip_mesh and obj.type == "MESH":
                 self.transform_apply(context, obj, scale=True)
-                obj.scale = (1.0, -1.0, 1.0)
+                obj.scale = (-1.0, 1.0, 1.0)
                 self.transform_apply(context, obj, scale=True)
                 #bpy.ops.object.mode_set(mode="EDIT")
                 #bpy.ops.mesh.flip_normals()
