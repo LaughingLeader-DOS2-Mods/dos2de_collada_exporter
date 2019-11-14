@@ -312,7 +312,6 @@ class DaeExporter:
 
 
         armature_modifier = None
-
         armature_poses = None
 
         if(self.config["use_exclude_armature_modifier"]):

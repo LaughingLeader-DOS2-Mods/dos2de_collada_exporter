@@ -635,7 +635,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
     use_export_selected = BoolProperty(
         name="Selected Only",
         description="Export only selected objects (and visible in active "
-                    "layers if that applies).",
+                    "layers if that applies)",
         default=False
         )
 
@@ -653,17 +653,17 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
 
     xflip_armature = BoolProperty(
         name="X-Flip Armature",
-        description="Flips the armature on the x-axis.",
+        description="Flips the armature on the x-axis",
         default=False
         )
     xflip_mesh = BoolProperty(
         name="X-Flip Mesh",
-        description="Flips meshes on the x-axis (DOS2/granny x-flips everything for some reason).",
+        description="Flips meshes on the x-axis (DOS2/granny x-flips everything for some reason)",
         default=True
         )
     auto_name = EnumProperty(
         name="Auto-Name",
-        description="Auto-generate a filename based on a property name.",
+        description="Auto-generate a filename based on a property name",
         items=(("DISABLED", "Disabled", ""),
                ("LAYER", "Layer Name", ""),
                ("ACTION", "Action Name", "")),
@@ -672,28 +672,33 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         )
     use_mesh_modifiers = BoolProperty(
         name="Apply Modifiers",
-        description="Apply modifiers to mesh objects (on a copy!).",
-        default=True,
+        description="Apply modifiers to mesh objects (on a copy!)",
+        default=True
         )
     use_exclude_armature_modifier = BoolProperty(
         name="Exclude Armature Modifier",
         description="Exclude the armature modifier when applying modifiers "
                       "(otherwise animation will be applied on top of the last pose)",
-        default=True,
+        default=True
         )
     use_normalize_vert_groups = BoolProperty(
         name="Normalize Vertex Groups",
         description="Normalize all vertex groups",
         default=True
         )
+    use_limit_total = BoolProperty(
+        name="Limit Total",
+        description="Limit total vertex influences to 4 (GR2 requirement)",
+        default=False
+        )
     use_tangent = BoolProperty(
         name="Export Tangents",
-        description="Export Tangent and Binormal arrays (for normalmapping).",
+        description="Export Tangent and Binormal arrays (for normalmapping)",
         default=True
         )
     use_triangles = BoolProperty(
         name="Triangulate",
-        description="Export Triangles instead of Polygons.",
+        description="Export Triangles instead of Polygons",
         default=True
         )
 
@@ -704,13 +709,13 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         )
     use_active_layers = BoolProperty(
         name="Active Layers Only",
-        description="Export only objects on the active layers.",
+        description="Export only objects on the active layers",
         default=True
         )
     use_exclude_ctrl_bones = BoolProperty(
         name="Exclude Control Bones",
         description=("Exclude skeleton bones with names beginning with 'ctrl' "
-                     "or bones which are not marked as Deform bones."),
+                     "or bones which are not marked as Deform bones"),
         default=False
         )
     use_anim = BoolProperty(
@@ -725,8 +730,8 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         )
     use_anim_skip_noexp = BoolProperty(
         name="Skip (-noexp) Actions",
-        description="Skip exporting of actions whose name end in (-noexp)."
-                    " Useful to skip control animations.",
+        description="Skip exporting of actions whose name end in (-noexp)"
+                    " Useful to skip control animations",
         default=False
         )
     use_anim_optimize = BoolProperty(
@@ -737,7 +742,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
 
     use_shape_key_export = BoolProperty(
         name="Export Shape Keys",
-        description="Export shape keys for selected objects.",
+        description="Export shape keys for selected objects",
         default=False
         )
         
@@ -760,7 +765,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
 
     yup_enabled = EnumProperty(
         name="Y-Up",
-        description="Converts from Z-up to Y-up.",
+        description="Converts from Z-up to Y-up",
         items=yup_rotation_options,
         default=("DISABLED"),
         update=yup_local_override_save
@@ -793,6 +798,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             if self.yup_local_override is False:
                 self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = True
+            self.use_limit_total = True
             self.use_tangent = True
             self.use_triangles = True
             self.use_active_layers = True
@@ -821,6 +827,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             if self.yup_local_override is False:
                 self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = False
+            self.use_limit_total = False
             self.use_tangent = True
             self.use_triangles = True
             self.use_active_layers = True
@@ -847,6 +854,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             if self.yup_local_override is False:
                 self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = True
+            self.use_limit_total = True
             self.use_tangent = True
             self.use_triangles = True
             self.use_active_layers = True
@@ -875,7 +883,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
 
     selected_preset = EnumProperty(
         name="Preset",
-        description="Use a built-in preset.",
+        description="Use a built-in preset",
         items=(("NONE", "None", ""),
                ("MESHPROXY", "MeshProxy", "Use default meshproxy settings"),
                ("ANIMATION", "Animation", "Use default animation settings"),
@@ -921,20 +929,26 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         row3col1 = row3.column(align=True)
         row3col2 = row3.column(align=True)
         row3col3 = row3.column(align=True)
+       
+        row4 = layout.row(align=True)
+        row4col1 = row4.column(align=True)
+        row4col2 = row4.column(align=True)
+        row4col3 = row4.column(align=True)
 
         row1col1.prop(self, "use_active_layers")
         row2col1.prop(self, "use_export_visible")
         row3col1.prop(self, "use_export_selected")
+        row4col1.prop(self, "use_mesh_modifiers")
 
         row1col2.prop(self, "use_tangent")
         row2col2.prop(self, "use_triangles")
-        #row3col2.label("")
         row3col2.prop(self, "xflip_mesh")
-        #row3col2.prop(self, "use_normalize_vert_groups")
+        row4col2.prop(self, "use_exclude_armature_modifier")
 
         row1col3.prop(self, "use_normalize_vert_groups")
-        row2col3.prop(self, "use_mesh_modifiers")
-        row3col3.prop(self, "use_exclude_armature_modifier")
+        row2col3.prop(self, "use_limit_total")
+        row3col3.label("")
+        row4col3.label("")
         #if self.use_mesh_modifiers:
         
         #col = layout.column(align=True)
@@ -1404,14 +1418,49 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                 self.transform_apply(context, obj, scale=True)
                 print("Flipped and applied scale transformation for {} ".format(obj.name))
 
-            if self.use_normalize_vert_groups and obj.type == "MESH" and obj.vertex_groups:
-                bpy.context.scene.objects.active = obj
-                obj.select = True
-                bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
-                bpy.ops.object.vertex_group_normalize_all()
-                bpy.ops.object.mode_set(mode="OBJECT")
-                print("Normalized vertex groups for {}.".format(obj.name))
-                obj.select = False
+            if self.use_mesh_modifiers and obj.type == "MESH":
+                if obj.modifiers and len(obj.modifiers) > 0:
+                    old_mesh = obj.data
+                    armature_modifier = None
+                    armature_poses = None
+                    if(self.use_exclude_armature_modifier):
+                        armature_modifier = obj.modifiers.get("Armature")
+
+                    if(armature_modifier):
+                        # doing this per object is inefficient, should be improved, maybe?
+                        armature_poses = [arm.pose_position for arm in bpy.data.armatures]
+                        for arm in bpy.data.armatures:
+                            arm.pose_position = "REST"
+
+                    apply_modifiers = len(obj.modifiers) and self.use_mesh_modifiers
+
+                    mesh = obj.to_mesh(context.scene, apply_modifiers, "RENDER")
+                    if(armature_modifier):
+                        for i, arm in enumerate(bpy.data.armatures):
+                            arm.pose_position = armature_poses[i]
+                    for mod in obj.modifiers:
+                        if mod.type != "ARMATURE":
+                            obj.modifiers.remove(mod)
+                    obj.data = mesh
+                    bpy.data.meshes.remove(old_mesh)
+
+            if obj.type == "MESH" and obj.vertex_groups:
+                if self.use_limit_total:
+                    bpy.context.scene.objects.active = obj
+                    obj.select = True
+                    bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
+                    bpy.ops.object.vertex_group_limit_total(limit=4)
+                    bpy.ops.object.mode_set(mode="OBJECT")
+                    print("Limited total vertex influences to 4 for {}.".format(obj.name))
+                    obj.select = False
+                if self.use_normalize_vert_groups:
+                    bpy.context.scene.objects.active = obj
+                    obj.select = True
+                    bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
+                    bpy.ops.object.vertex_group_normalize_all()
+                    bpy.ops.object.mode_set(mode="OBJECT")
+                    print("Normalized vertex groups for {}.".format(obj.name))
+                    obj.select = False
 
         # Merging
         if merging_enabled:
@@ -1595,7 +1644,7 @@ class DIVINITYEXPORTER_OT_set_extra_flags(Operator):
 
     flag = EnumProperty(
         name="Flag",
-        description="Set the custom export flag for this mesh.",
+        description="Set the custom export flag for this mesh",
         items=gr2_extra_flags,
         default=("DISABLED")
     )
