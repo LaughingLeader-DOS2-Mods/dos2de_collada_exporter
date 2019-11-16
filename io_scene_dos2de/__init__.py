@@ -691,6 +691,11 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         description="Limit total vertex influences to 4 (GR2 requirement)",
         default=False
         )
+    use_rest_pose = BoolProperty(
+        name="Use Rest Pose",
+        description="Revert any armatures to their rest poses when exporting (on the copy only)",
+        default=True
+        )
     use_tangent = BoolProperty(
         name="Export Tangents",
         description="Export Tangent and Binormal arrays (for normalmapping)",
@@ -798,7 +803,8 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             if self.yup_local_override is False:
                 self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = True
-            self.use_limit_total = True
+            #self.use_limit_total = True
+            self.use_rest_pose = True
             self.use_tangent = True
             self.use_triangles = True
             self.use_active_layers = True
@@ -827,7 +833,8 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             if self.yup_local_override is False:
                 self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = False
-            self.use_limit_total = False
+            #self.use_limit_total = False
+            self.use_rest_pose = False
             self.use_tangent = True
             self.use_triangles = True
             self.use_active_layers = True
@@ -854,7 +861,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             if self.yup_local_override is False:
                 self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = True
-            self.use_limit_total = True
+            #self.use_limit_total = True
             self.use_tangent = True
             self.use_triangles = True
             self.use_active_layers = True
@@ -947,7 +954,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
 
         row1col3.prop(self, "use_normalize_vert_groups")
         row2col3.prop(self, "use_limit_total")
-        row3col3.label("")
+        row3col3.prop(self, "use_rest_pose")
         row4col3.label("")
         #if self.use_mesh_modifiers:
         
@@ -1352,6 +1359,10 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         merging_enabled = hasattr(context.scene, "llexportmerge")
         
         for obj in modifyObjects:
+            if obj.type == "ARMATURE" and self.use_rest_pose:
+                d = getattr(obj, "data", None)
+                if d is not None:
+                    d.pose_position = "REST"
             if hasattr(obj, "llexportprops"):
                 if not obj.parent:
                     print("Preparing export properties for {}".format(obj.name))
