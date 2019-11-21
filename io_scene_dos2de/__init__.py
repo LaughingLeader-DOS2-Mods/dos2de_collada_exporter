@@ -1450,10 +1450,15 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                         for i, arm in enumerate(bpy.data.armatures):
                             arm.pose_position = armature_poses[i]
                     for mod in obj.modifiers:
-                        if mod.type != "ARMATURE":
+                        if mod.type != "ARMATURE" or "ARMATURE" not in self.object_types:
                             obj.modifiers.remove(mod)
                     obj.data = mesh
                     bpy.data.meshes.remove(old_mesh)
+                
+                if "ARMATURE" not in self.object_types and obj.parent is not None and obj.parent.type == "ARMATURE":
+                    matrix_copy = obj.parent.matrix_world.copy()
+                    obj.parent = None
+                    obj.matrix_world = matrix_copy
 
             if obj.type == "MESH" and obj.vertex_groups:
                 if self.use_limit_total:
