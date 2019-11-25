@@ -169,10 +169,8 @@ class DaeExporter:
 
     def mesh_has_property(self, obj, mesh, property):
         if mesh.get(property, None) is not None or mesh.get(property.capitalize(), None) is not None:
-            print("Mesh has property: {}".format(property))
             return True
         elif obj.get(property, None) is not None or obj.get(property.capitalize(), None) is not None:
-            print("Object has property: {}".format(property))
             return True
         return False
 
@@ -181,6 +179,7 @@ class DaeExporter:
         mesh = node.data
 
         if (node.data in self.mesh_cache):
+            print("    [DOS2DE-Exporter] Using mesh cache for '{}'.".format(mesh.name))
             return self.mesh_cache[mesh]
 
         if export_name is None or export_name == "":
@@ -188,6 +187,7 @@ class DaeExporter:
 
         if (skeyindex == -1 and mesh.shape_keys is not None and len(
                 mesh.shape_keys.key_blocks) and self.config["use_shape_key_export"]):
+            print("    [DOS2DE-Exporter] Exporting with shape keys for '{}'.".format(mesh.name))
             values = []
             morph_targets = []
             md = None
@@ -221,6 +221,8 @@ class DaeExporter:
 
             node.show_only_shape_key = False
             node.active_shape_key_index = 0
+
+            print("[DOS2DE-Exporter] Writing mesh xml for '{}'.".format(mesh.name))
 
             self.writel(
                 S_MORPH, 1, "<controller id=\"{}\" name=\"\">".format(mid))
@@ -323,7 +325,6 @@ class DaeExporter:
             for arm in bpy.data.armatures:
                 arm.pose_position = "REST"
 
-
         apply_modifiers = len(node.modifiers) and self.config[
             "use_mesh_modifiers"]
 
@@ -333,9 +334,8 @@ class DaeExporter:
             for i, arm in enumerate(bpy.data.armatures):
                 arm.pose_position = armature_poses[i]
 
-
-
         self.temp_meshes.add(mesh)
+        print("    [DOS2DE-Exporter] Triangulating mesh '{}'.".format(mesh.name))
         triangulate = self.config["use_triangles"]
         if (triangulate):
             bm = bmesh.new()
@@ -887,6 +887,7 @@ class DaeExporter:
 
     def export_mesh_node(self, node, il, export_name=""):
         if (node.data is None):
+            print("  [DOS2DE-Exporter] *WARNING* Mesh node '{}' has no data!".format(node.name))
             return
 
         armature = None
@@ -927,11 +928,13 @@ class DaeExporter:
                                     self.armature_for_morph[
                                         node] = self.objects[t.id.name]
 
+        print("  [DOS2DE-Exporter] Preparing meshdata for '{}'.".format(node.name))
         meshdata = self.export_mesh(node, armature, export_name=export_name)
         close_controller = False
 
         if ("skin_id" in meshdata):
             close_controller = True
+            print("  [DOS2DE-Exporter] Using skin_id for '{}'.".format(node.name))
             self.writel(
                 S_NODES, il, "<instance_controller url=\"#{}\">".format(
                     meshdata["skin_id"]))
@@ -939,15 +942,18 @@ class DaeExporter:
                 self.writel(
                     S_NODES, il + 1, "<skeleton>#{}</skeleton>".format(sn))
         elif ("morph_id" in meshdata):
+            print("  [DOS2DE-Exporter] Using morph_id for '{}'.".format(node.name))
             self.writel(
                 S_NODES, il, "<instance_controller url=\"#{}\">".format(
                     meshdata["morph_id"]))
             close_controller = True
         elif (armature is None):
+            print("  [DOS2DE-Exporter] No armature, writing instance geometry for '{}'.".format(node.name))
             self.writel(S_NODES, il, "<instance_geometry url=\"#{}\">".format(
                 meshdata["id"]))
 
         if (len(meshdata["material_assign"]) > 0):
+            print("  [DOS2DE-Exporter] Writing material data for '{}'.".format(node.name))
             self.writel(S_NODES, il + 1, "<bind_material>")
             self.writel(S_NODES, il + 2, "<technique_common>")
             for m in meshdata["material_assign"]:
@@ -1446,6 +1452,11 @@ class DaeExporter:
         self.material_cache[material] = matid
         return matid
 
+    def escape(self, data):
+        data = data.replace("&", "&amp;")
+        data = data.replace(">", "&gt;")
+        data = data.replace("<", "&lt;")
+
     def export_node(self, node, il):
         if (node not in self.valid_nodes):
             return
@@ -1453,7 +1464,7 @@ class DaeExporter:
         prev_node = self.active_object
         self.active_object = node
 
-        export_name = node.get("export_name", node.name)
+        export_name = self.escape(node.get("export_name", node.name))
         exportid = self.new_id(export_name)
 
         #print("Export name: {} id {}".format(export_name, exportid))

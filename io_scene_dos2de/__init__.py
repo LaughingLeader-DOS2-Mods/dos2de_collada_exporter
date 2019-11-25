@@ -79,6 +79,10 @@ class ExportProgressProperties(PropertyGroup):
 
     progress_current = IntProperty(name="Current Progress", options={"HIDDEN"}, update=update_progress_text)
 
+def report(op, msg, reportType="WARNING"):
+    op.report(set((reportType, )), msg)
+    print("{} ({})".format(msg, reportType))
+
 def start_progress(total, text=''):
     return
     progress = bpy.context.scene.daefileprogress
@@ -659,7 +663,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
     xflip_mesh = BoolProperty(
         name="X-Flip Mesh",
         description="Flips meshes on the x-axis (DOS2/granny x-flips everything for some reason)",
-        default=True
+        default=False
         )
     auto_name = EnumProperty(
         name="Auto-Name",
@@ -1002,7 +1006,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
 
         if self.log_message != "":
             print(self.log_message)
-            self.report({'WARNING'}, "{}".format(self.log_message))
+            report(self, "{}".format(self.log_message), "WARNING")
             self.log_message = ""
 
         user_preferences = context.user_preferences
@@ -1126,6 +1130,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             for i in range(20):
                 if context.scene.layers[i] and not obj.layers[i]:
                     return False
+        #print("[DOS2DE-Exporter] Obj '{}' can be exported".format(obj.name))
         return True
 
     def merge_armatures(self, context, modifyObjects):
@@ -1294,14 +1299,19 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         print("[DOS2DE-Export] Created a copy of object/data {} ({})".format(obj.name, copy.name))
 
         if parent is not None:
-            copy.parent = parent
-            copy.matrix_parent_inverse = obj.matrix_parent_inverse.copy()
-            if parent.type == "ARMATURE":
-                armature_modifiers = (mod for mod in copy.modifiers if mod.type == "ARMATURE" and 
-                    obj.parent is not None and mod.object is not None and mod.object.name == obj.parent.name)
-                for mod in armature_modifiers:
-                    mod.object = parent
-                    print("   [DOS2DE-Export] Updated armature modifier to point to the copied armature {} for child {}".format(parent.name, copy.name))
+            if self.can_modify_object(context, parent):
+                copy.parent = parent
+                copy.matrix_parent_inverse = obj.matrix_parent_inverse.copy()
+                if parent.type == "ARMATURE":
+                    armature_modifiers = (mod for mod in copy.modifiers if mod.type == "ARMATURE" and 
+                        obj.parent is not None and mod.object is not None and mod.object.name == obj.parent.name)
+                    for mod in armature_modifiers:
+                        mod.object = parent
+                        print("   [DOS2DE-Export] Updated armature modifier to point to the copied armature {} for child {}".format(parent.name, copy.name))
+            else:
+                report(self, 
+                 "[DOS2DE-Exporter] Object '{}' has a parent '{}' that will not export. Please unparent it or adjust the parent so it will export.".format(
+                     copy.name, parent.name))
 
         return copy
 
@@ -1324,10 +1334,6 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         activeObject = None
         if bpy.context.scene.objects.active:
             activeObject = bpy.context.scene.objects.active
-
-        if self.xflip_mesh:
-            #bm = bmesh.new()
-            pass
         
         targetObjects = []
         modifyObjects = []
@@ -1341,20 +1347,37 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             if obj.select:
                 selectedObjects.append(obj)
                 obj.select = False
+            
             if self.can_modify_object(context, obj):
                 targetObjects.append(obj)
 
         for obj in targetObjects:
-            if not obj.parent:
+            parent_not_exporting = (obj.parent is not None 
+                and not self.can_modify_object(context, obj.parent))
+            if not obj.parent or parent_not_exporting:
+                print("[DOS2DE-Exporter] Copying object '{}'.".format(obj.name))
                 copy = self.copy_obj(context, obj)
                 modifyObjects.append(copy)
                 copies.append(copy)
+
+                if parent_not_exporting:
+                    msg = "[DOS2DE-Exporter] Object '{}' has a parent '{}' that will not export. Unparenting copy and preserving transform.".format(
+                        copy.name, obj.parent.name)
+                    report(self, msg)
+                    bpy.ops.object.select_all(action='DESELECT')
+                    bpy.context.scene.objects.active = copy
+                    copy.select = True
+                    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+                    copy.select = False
+                    bpy.context.scene.objects.active = None
 
                 for childobj in obj.children:
                     if self.can_modify_object(context, childobj):
                         childcopy = self.copy_obj(context, childobj, copy)
                         modifyObjects.append(childcopy)
                         copies.append(childcopy)
+            else:
+                print("[DOS2DE-Exporter] object '{}' has a parent.".format(obj.name))
 
         merging_enabled = hasattr(context.scene, "llexportmerge")
         
@@ -1428,6 +1451,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                 obj.data.update()
                 self.transform_apply(context, obj, scale=True)
                 print("Flipped and applied scale transformation for {} ".format(obj.name))
+                #return {"FINISHED"}
 
             if self.use_mesh_modifiers and obj.type == "MESH":
                 if obj.modifiers and len(obj.modifiers) > 0:
@@ -1479,12 +1503,12 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                     obj.select = False
 
         # Merging
-        if merging_enabled:
-            print("Merging meshes.")
-            if len(context.scene.llexportmerge.armatures) > 0:
-                modifyObjects = self.merge_armatures(context, modifyObjects)
-            if len(context.scene.llexportmerge.meshes) > 0:
-                modifyObjects = self.merge_meshes(context, modifyObjects)
+        # if merging_enabled:
+        #     print("Merging meshes.")
+        #     if len(context.scene.llexportmerge.armatures) > 0:
+        #         modifyObjects = self.merge_armatures(context, modifyObjects)
+        #     if len(context.scene.llexportmerge.meshes) > 0:
+        #         modifyObjects = self.merge_meshes(context, modifyObjects)
 
         keywords = self.as_keywords(ignore=("axis_forward",
                                             "axis_up",
@@ -1521,7 +1545,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                             if export_dae.save(self, context, [armature], filepath=export_filepath, **keywords) == {"FINISHED"}:
                                 exported_pathways.append(export_filepath)
                             else:
-                                self.report({"WARNING"}, "[DOS2DE-Exporter] Failed to export '{}'.".format(export_filepath))
+                                report(self, "[DOS2DE-Exporter] Failed to export '{}'.".format(export_filepath))
 
                             update_progress(1)
                     result = {"FINISHED"}
@@ -1548,7 +1572,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                             if export_dae.save(self, context, export_list, filepath=export_filepath, **keywords) == {"FINISHED"}:
                                 exported_pathways.append(export_filepath)
                             else:
-                                self.report({"WARNING"}, "[DOS2DE-Exporter] Failed to export '{}'.".format(export_filepath))
+                                report(self, "[DOS2DE-Exporter] Failed to export '{}'.".format(export_filepath))
 
                             update_progress(1)
                     
@@ -1636,7 +1660,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                         if process.returncode != 0:
                             #raise Exception("Error converting DAE to GR2: \"{}\"{}".format(process.stderr, process.stdout))
                             error_message = "[DOS2DE-Collada] [ERROR:{}] Error converting DAE to GR2. {}".format(process.returncode, '\n'.join(process.stdout.splitlines()[-1:]))
-                            self.report({"ERROR"}, error_message)
+                            report(self, error_message, "ERROR")
                             print(error_message)
                         else:
                             if self.divine_settings.delete_collada and os.path.isfile(collada_file):
