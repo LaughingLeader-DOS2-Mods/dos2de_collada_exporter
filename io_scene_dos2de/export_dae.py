@@ -1456,6 +1456,7 @@ class DaeExporter:
         data = data.replace("&", "&amp;")
         data = data.replace(">", "&gt;")
         data = data.replace("<", "&lt;")
+        return data
 
     def export_node(self, node, il):
         if (node not in self.valid_nodes):
@@ -1464,10 +1465,14 @@ class DaeExporter:
         prev_node = self.active_object
         self.active_object = node
 
-        export_name = self.escape(node.get("export_name", node.name))
+        try:
+            export_name = self.escape(node["export_name"])
+        except:
+            export_name = node.name
+        
         exportid = self.new_id(export_name)
 
-        #print("Export name: {} id {}".format(export_name, exportid))
+        print("Export name: {} id {}".format(export_name, exportid))
         export_armature_enabled = True
 
         if node.type != "ARMATURE" or export_armature_enabled == True:

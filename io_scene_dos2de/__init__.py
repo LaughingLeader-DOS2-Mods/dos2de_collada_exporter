@@ -1290,9 +1290,11 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             copy.data.use_fake_user = False
         except: pass
         
-        if hasattr(obj, "llexportprops"):
-            copy.llexportprops.copy(obj.llexportprops)
+        export_props = getattr(obj, "llexportprops")
+        if export_props is not None:
+            copy.llexportprops.copy(export_props)
             copy.llexportprops.original_name = obj.name
+            #copy.data.name = copy.llexportprops.export_name
 
         context.scene.objects.link(copy)
 
@@ -1386,13 +1388,16 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                 d = getattr(obj, "data", None)
                 if d is not None:
                     d.pose_position = "REST"
-            if hasattr(obj, "llexportprops"):
+            export_props = getattr(obj, "llexportprops")
+            if export_props is not None:
                 if not obj.parent:
                     print("Preparing export properties for {}".format(obj.name))
-                    obj.llexportprops.prepare(context, obj)
+                    export_props.prepare(context, obj)
                     for childobj in obj.children:
                         print("  Preparing export properties for child {}".format(childobj.name))
                         childobj.llexportprops.prepare(context, childobj)
+                        childobj.llexportprops.prepare_name(context, childobj)
+                export_props.prepare_name(context, obj)
             
             if self.yup_enabled == "ROTATE":
                     if not obj.parent:
