@@ -334,7 +334,7 @@ class Divine_ExportSettings(PropertyGroup):
     )
     export_tangents = BoolProperty(
         name="Export Tangent/Bitangent",
-        default=True
+        default=False
     )
     export_uvs = BoolProperty(
         name="Export UVs",
