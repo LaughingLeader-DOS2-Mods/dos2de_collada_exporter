@@ -334,7 +334,7 @@ class Divine_ExportSettings(PropertyGroup):
     )
     export_tangents = BoolProperty(
         name="Export Tangent/Bitangent",
-        default=False
+        default=True
     )
     export_uvs = BoolProperty(
         name="Export UVs",
@@ -703,7 +703,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
     use_tangent = BoolProperty(
         name="Export Tangents",
         description="Export Tangent and Binormal arrays (for normalmapping)",
-        default=True
+        default=False
         )
     use_triangles = BoolProperty(
         name="Triangulate",
@@ -809,7 +809,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             self.use_normalize_vert_groups = True
             #self.use_limit_total = True
             self.use_rest_pose = True
-            self.use_tangent = True
+            #self.use_tangent = False
             self.use_triangles = True
             self.use_active_layers = True
             self.auto_name = "LAYER"
@@ -839,7 +839,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             self.use_normalize_vert_groups = False
             #self.use_limit_total = False
             self.use_rest_pose = False
-            self.use_tangent = True
+            self.use_tangent = False
             self.use_triangles = True
             self.use_active_layers = True
             self.auto_name = "ACTION"
@@ -866,7 +866,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                 self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = True
             #self.use_limit_total = True
-            self.use_tangent = True
+            self.use_tangent = False
             self.use_triangles = True
             self.use_active_layers = True
             self.auto_name = "LAYER"
