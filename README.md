@@ -21,7 +21,7 @@ _[Be sure to grab the LaughingLeader Helpers addon for layer support and additio
 * Copy the folder `io_scene_dos2de`. Make sure this is the folder with the scripts under it (`io_scene_dos2de\__init__.py` etc).
 * Paste the `io_scene_dos2de` folder into your addons folder. Default pathway:
 ```
-C:\Users\Username\AppData\Roaming\Blender Foundation\Blender\2.79\scripts\addons\
+%APPDATA%\Blender Foundation\Blender\2.79\scripts\addons
 ```
 * (Optional) Refer to Blender's guide for installing addons here: [Install from File](https://docs.blender.org/manual/en/latest/preferences/addons.html#header). It has a tip section for setting up a separate scripts/addons folder, outside of your appdata.
 
