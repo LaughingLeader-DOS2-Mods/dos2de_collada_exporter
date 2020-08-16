@@ -498,14 +498,14 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         }
 
         for prop,arg in divine_args.items():
-            val = getattr(self.divine_settings, prop)
+            val = getattr(self.divine_settings, prop, False)
             if val == True:
                 export_str += "-e " + arg + " "
 
         gr2_settings = self.divine_settings.gr2_settings
 
         for prop,arg in gr2_args.items():
-            val = getattr(gr2_settings, prop)
+            val = getattr(gr2_settings, prop, False)
             if val == True:
                 export_str += "-e " + arg + " "
 
@@ -1290,7 +1290,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             copy.data.use_fake_user = False
         except: pass
         
-        export_props = getattr(obj, "llexportprops")
+        export_props = getattr(obj, "llexportprops", None)
         if export_props is not None:
             copy.llexportprops.copy(export_props)
             copy.llexportprops.original_name = obj.name
@@ -1388,7 +1388,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                 d = getattr(obj, "data", None)
                 if d is not None:
                     d.pose_position = "REST"
-            export_props = getattr(obj, "llexportprops")
+            export_props = getattr(obj, "llexportprops", None)
             if export_props is not None:
                 if not obj.parent:
                     print("Preparing export properties for {}".format(obj.name))
