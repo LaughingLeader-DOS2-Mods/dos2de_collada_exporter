@@ -1324,6 +1324,8 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
     def execute(self, context):
         if not self.filepath:
             raise Exception("filepath not set")
+
+        result = ""
         
         user_preferences = context.user_preferences
         addon_prefs = user_preferences.addons["io_scene_dos2de"].preferences
@@ -1559,7 +1561,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                     single_mode = True
             else:
                 if self.use_active_layers:
-                    progress_total = len((i for i in range(20) if context.scene.layers[i]))
+                    progress_total = len(list(i for i in range(20) if context.scene.layers[i]))
                     start_progress(progress_total, "Exporting layers to DAE... {}/{}")
                     for i in range(20):
                         if context.scene.layers[i]:
@@ -1576,7 +1578,9 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
 
                             if export_dae.save(self, context, export_list, filepath=export_filepath, **keywords) == {"FINISHED"}:
                                 exported_pathways.append(export_filepath)
+                                result = {"FINISHED"}
                             else:
+                                result = {"ERROR"}
                                 report(self, "[DOS2DE-Exporter] Failed to export '{}'.".format(export_filepath))
 
                             update_progress(1)
