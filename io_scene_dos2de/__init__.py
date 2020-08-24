@@ -920,7 +920,8 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         col = layout.column(align=True)
         col.prop(self, "auto_determine_path")
         col.prop(self, "selected_preset")
-        col.prop(self, "batch_mode")
+        if self.debug_mode:
+            col.prop(self, "batch_mode")
 
         box = layout.box()
         box.prop(self, "auto_name")
