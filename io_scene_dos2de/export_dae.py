@@ -913,7 +913,7 @@ class DaeExporter:
         if (armcount > 0 and not armature):
             self.operator.report(
                 {"WARNING"},
-                "Object \"{}\" has armature modifier, but is not a child of "
+                "Object \"{}\" has an armature modifier, but is not a child of "
                 "an armature. This is unsupported.".format(node.name))
 
         if (node.data.shape_keys is not None):

@@ -515,6 +515,11 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         if self.directory == "":
             self.directory = os.path.dirname(bpy.data.filepath)
 
+        # if self.convert_gr2:
+        #     self.filename_ext = ".gr2"
+        # else:
+        #     self.filename_ext = ".dae"
+
         if self.filepath == "":
             #self.filepath = bpy.path.ensure_ext(str.replace(bpy.path.basename(bpy.data.filepath), ".blend", ""), self.filename_ext)
             self.filepath = bpy.path.ensure_ext("{}\\{}".format(self.directory, str.replace(bpy.path.basename(bpy.data.filepath), ".blend", "")), self.filename_ext)
@@ -570,7 +575,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             auto_directory = self.export_directory
             if self.selected_preset != "NONE":
                 if self.selected_preset == "MODEL":
-                    if "_FX_" in next_path:
+                    if "_FX_" in next_path and os.path.exists("{}\\Models\\Effects".format(self.export_directory)):
                         auto_directory = "{}\\Models\\Effects".format(self.export_directory)
                     else:
                         auto_directory = "{}\\{}".format(self.export_directory, "Models")
@@ -808,7 +813,7 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                 self.yup_enabled = "ROTATE"
             self.use_normalize_vert_groups = True
             #self.use_limit_total = True
-            self.use_rest_pose = True
+            #self.use_rest_pose = True
             #self.use_tangent = False
             self.use_triangles = True
             self.use_active_layers = True
@@ -1271,6 +1276,16 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
             print("[DOS2DE-Export] [Error] No objects were selected for merge with {}".format(top_object.name))
         return modifyObjects
     
+    def pose_apply(self, context, obj):
+        last_active = getattr(bpy.context.scene.objects, "active", None)
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.context.scene.objects.active = obj
+        obj.select = True
+        bpy.ops.object.mode_set(mode="POSE")
+        bpy.ops.pose.armature_apply()
+        obj.select = False
+        bpy.context.scene.objects.active = last_active
+    
     def transform_apply(self, context, obj, location=False, rotation=False, scale=False):
         last_active = getattr(bpy.context.scene.objects, "active", None)
         bpy.ops.object.select_all(action='DESELECT')
@@ -1387,10 +1402,13 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
         merging_enabled = hasattr(context.scene, "llexportmerge")
         
         for obj in modifyObjects:
-            if obj.type == "ARMATURE" and self.use_rest_pose:
-                d = getattr(obj, "data", None)
-                if d is not None:
-                    d.pose_position = "REST"
+            if obj.type == "ARMATURE":
+                if self.use_exclude_armature_modifier:
+                    self.pose_apply(context, obj)
+                elif self.use_rest_pose:
+                    d = getattr(obj, "data", None)
+                    if d is not None:
+                        d.pose_position = "REST"
             export_props = getattr(obj, "llexportprops", None)
             if export_props is not None:
                 if not obj.parent:
@@ -1462,32 +1480,45 @@ class DIVINITYEXPORTER_OT_export_collada(Operator, ExportHelper):
                 #return {"FINISHED"}
 
             if self.use_mesh_modifiers and obj.type == "MESH":
+                hasArmature = "ARMATURE" in self.object_types
                 if obj.modifiers and len(obj.modifiers) > 0:
                     old_mesh = obj.data
-                    armature_modifier = None
-                    armature_poses = None
-                    if(self.use_exclude_armature_modifier):
-                        armature_modifier = obj.modifiers.get("Armature")
 
-                    if(armature_modifier):
-                        # doing this per object is inefficient, should be improved, maybe?
-                        armature_poses = [arm.pose_position for arm in bpy.data.armatures]
+                    armature_modifier = obj.modifiers.get("Armature")
+                    armature_poses = [arm.pose_position for arm in bpy.data.armatures]
+
+                    if self.use_rest_pose:
                         for arm in bpy.data.armatures:
                             arm.pose_position = "REST"
 
-                    apply_modifiers = len(obj.modifiers) and self.use_mesh_modifiers
+                    if self.use_exclude_armature_modifier and armature_modifier:
+                        obj.modifiers.remove(armature_modifier)
+
+                    apply_modifiers = len(obj.modifiers) > 0 and self.use_mesh_modifiers
 
                     mesh = obj.to_mesh(context.scene, apply_modifiers, "RENDER")
-                    if(armature_modifier):
+
+                    #Reset poses
+                    if armature_poses:
                         for i, arm in enumerate(bpy.data.armatures):
                             arm.pose_position = armature_poses[i]
-                    for mod in obj.modifiers:
-                        if mod.type != "ARMATURE" or "ARMATURE" not in self.object_types:
-                            obj.modifiers.remove(mod)
+
+                    obj.modifiers.clear()
+
+                    if armature_modifier:
+                        new_mod = obj.modifiers.new(armature_modifier.name, "ARMATURE")
+                        new_mod.invert_vertex_group = armature_modifier.invert_vertex_group
+                        new_mod.object = armature_modifier.object
+                        new_mod.use_bone_envelopes = armature_modifier.use_bone_envelopes
+                        new_mod.use_deform_preserve_volume = armature_modifier.use_deform_preserve_volume
+                        new_mod.use_multi_modifier = armature_modifier.use_multi_modifier
+                        new_mod.use_vertex_groups = armature_modifier.use_vertex_groups
+                        new_mod.vertex_group = armature_modifier.vertex_group
+                    
                     obj.data = mesh
                     bpy.data.meshes.remove(old_mesh)
                 
-                if "ARMATURE" not in self.object_types and obj.parent is not None and obj.parent.type == "ARMATURE":
+                if not hasArmature and obj.parent is not None and obj.parent.type == "ARMATURE":
                     matrix_copy = obj.parent.matrix_world.copy()
                     obj.parent = None
                     obj.matrix_world = matrix_copy
